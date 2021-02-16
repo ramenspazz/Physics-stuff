@@ -14,7 +14,7 @@ def std_dev():
         n = 0    
         # calc mean
         data_vec = []
-        n_binda = int(input("Enter the number of bins to use: ))
+        n_bins = int(input("Enter the number of bins to use: ))
         with open("data.txt") as f:
             content = f.readlines()
 
