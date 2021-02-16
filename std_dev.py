@@ -5,7 +5,7 @@ import numpy as np
 from scipy.stats import norm
 import matplotlib.pyplot as plt
 
-n_bins = 10
+n_bins = 0
 
 def std_dev():
     try:
@@ -14,7 +14,7 @@ def std_dev():
         n = 0    
         # calc mean
         data_vec = []
-
+        n_binda = int(input("Enter the number of bins to use: ))
         with open("data.txt") as f:
             content = f.readlines()
 
@@ -24,7 +24,7 @@ def std_dev():
         for line in content:
             temp_line = line.split()
             data_vec.append(int(temp_line[2])) 
-
+        
         data_vec = np.array(data_vec)
         mean = sum(data_vec) / len(data_vec)
         # calc stdev
