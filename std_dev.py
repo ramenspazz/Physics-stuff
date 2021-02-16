@@ -7,18 +7,30 @@ import matplotlib.pyplot as plt
 
 n_bins = 10
 
-def std_dev(v):
+def std_dev():
     try:
         temp = 0
         temp_sum = 0
         n = 0    
         # calc mean
-        data_vec = np.array(v)
-        mean = sum(v) / len(v)
-        # calc stdev
+        data_vec = []
 
+        with open("data.txt") as f:
+            content = f.readlines()
+
+        # Show the file contents line by line.
+        # We added the comma to print single newlines and not double newlines.
+        # This is because the lines contain the newline character '\n'.
+        for line in content:
+            temp_line = line.split()
+            data_vec.append(int(temp_line[2])) 
+
+        data_vec = np.array(data_vec)
+        mean = sum(data_vec) / len(data_vec)
+        # calc stdev
         p_sum = 0
         for item in data_vec:
+        # compute the inner sum of the standard deviation
             p_sum = p_sum + (item - mean)**2
         temp = math.sqrt(p_sum / (len(data_vec)-1))
         print("The mean is {:.5f} and the stdev is {:.5f}. This does not include sig-figs, remember to do your sig-figs!\n".format(mean, temp))
@@ -33,11 +45,11 @@ def std_dev(v):
     except Exception as e:
         print("ERROR: {}".format(e))
     
-in_list = []
-print("enter numbers seperated by enter. q when done:\n")
-input_char = ''
-while input_char != 'q':
-    if input_char != '':
-        in_list.append(float(input_char))
-    input_char = input()
-std_dev(in_list)
+# in_list = []
+# print("enter numbers seperated by enter. q when done:\n")
+# input_char = ''
+# while input_char != 'q':
+#     if input_char != '':
+#         in_list.append(float(input_char))
+#     input_char = input()
+std_dev()
