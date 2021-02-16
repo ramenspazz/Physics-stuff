@@ -18,9 +18,6 @@ def std_dev():
         with open("data.txt") as f:
             content = f.readlines()
 
-        # Show the file contents line by line.
-        # We added the comma to print single newlines and not double newlines.
-        # This is because the lines contain the newline character '\n'.
         for line in content:
             temp_line = line.split()
             data_vec.append(int(temp_line[2])) 
