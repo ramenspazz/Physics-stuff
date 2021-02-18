@@ -1,3 +1,4 @@
+# TODO : write docstrings and code explinations ;P
 from __future__ import division
 from sympy.utilities.lambdify import lambdastr
 from datetime import datetime
