@@ -5,9 +5,58 @@ import numpy as np
 from scipy.stats import norm
 import matplotlib.pyplot as plt
 from astropy import modeling
+import sympy as sym
 n_bins = 10
 
-def std_dev():
+def least_squares_linear_fit(f_name):
+    """We are fitting the equation A_ij*x_j=b_i of the form b=C+Dx
+
+    What we are essentially looking for is the projection of b
+    onto the plane created by the column-space of A_ij.
+    This takes the form of solution_vec<=>A_ij*x_i(a_i*b_i/(b_i*b_i))b_j
+    with an associated error of error_vec=b_i-solution_vec_i such
+    that the error is related to the length of this vector.
+    we assume that the data we are being passed is of this form
+    {float} {whitespace} {float}
+    where the first column will represent the domain and the
+    second column will represent the range."""
+
+    try:
+
+        #count number of lines first
+        ln_num = len(open(f_name).readlines(  ))
+        print(ln_num)
+
+        with open(f_name) as f:
+            content = f.readlines()
+
+        A_mtx = np.empty((ln_num,2))
+        b_vec = np.empty((ln_num,1))
+        
+        ATA_mtx = np.empty((2,2))
+        out_vec = np.empty((2,1))
+        #Aug_mtx = np.empty((ln_num,ln_num+2))
+        
+        for i,line in enumerate(content):
+            temp_line = line.split()
+            A_mtx[i,0] = float(temp_line[0])
+            A_mtx[i,1] = float(1)
+            b_vec[i] = float(temp_line[1])
+        
+        A_T_mtx = np.transpose(A_mtx)
+
+        np.matmul(A_T_mtx,A_mtx,ATA_mtx)
+        ATA_mtx = np.linalg.inv(ATA_mtx)
+
+
+        temp = np.matmul(np.matmul(ATA_mtx,A_T_mtx),b_vec)
+        print("The coefficents for the line of best fit (y=mx+c) are m={}, c={}.".format(temp[0,0],temp[1,0]))
+
+    except Exception as e:
+        print(e)
+        return()
+
+def std_dev(f_name):
     try:
         temp = 0
         temp_sum = 0
@@ -15,15 +64,12 @@ def std_dev():
         # calc mean
         data_vec = []
         n_bins = int(input("enter number of bins: "))
-        with open("data4.txt") as f:
+        with open(f_name) as f:
             content = f.readlines()
 
-        # Show the file contents line by line.
-        # We added the comma to print single newlines and not double newlines.
-        # This is because the lines contain the newline character '\n'.
         for line in content:
             temp_line = line.split()
-            data_vec.append(int(temp_line[2])) 
+            data_vec.append(int(temp_line[1])) 
 
         data_vec = np.array(data_vec)
         mean = sum(data_vec) / len(data_vec)
@@ -53,11 +99,5 @@ def std_dev():
     except Exception as e:
         print("ERROR: {}".format(e))
     
-# in_list = []
-# print("enter numbers seperated by enter. q when done:\n")
-# input_char = ''
-# while input_char != 'q':
-#     if input_char != '':
-#         in_list.append(float(input_char))
-#     input_char = input()
-std_dev()
+f_name = input("enter a file name of data file: ")
+least_squares_linear_fit(f_name)
