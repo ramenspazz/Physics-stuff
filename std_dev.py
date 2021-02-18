@@ -25,8 +25,7 @@ def least_squares_linear_fit(f_name):
 
         #count number of lines first
         ln_num = len(open(f_name).readlines(  ))
-        print(ln_num)
-
+        print("The number of data lines found is {}.".format(ln_num)) 
         with open(f_name) as f:
             content = f.readlines()
 
