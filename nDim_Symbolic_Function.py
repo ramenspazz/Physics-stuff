@@ -1,3 +1,4 @@
+# TODO : write docstring and code explinations ;P
 from __future__ import division
 import numpy as np
 import sympy as sym
