@@ -49,18 +49,18 @@ def plot_2D_with_fit(x_data, y_data, fit_m, fit_b, num_data, xaxis_name = None, 
         axs.legend()
     plt.show()
 
-def parse_data_file(f_name, data_col_0, data_col_1):
+def parse_data_file(f_name, data_cols):
     """Takes a file name, and the column numbers starting from 0 of 2D data.
     Returns a multidimensional array of containing the data from the givin file name in columns.
     """
     ln_num = len(open(f_name).readlines(  ))
-    out_mtx = np.empty((ln_num,2))
+    out_mtx = np.empty((ln_num,len(data_cols)))
     with open(f_name) as f:
             content = f.readlines()
     for i, line in enumerate(content):
             temp_line = line.split()
-            out_mtx[i,0] = float(temp_line[data_col_0])
-            out_mtx[i,1] = float(temp_line[data_col_1])
+            for j, data_line in enumerate(data_cols):
+                out_mtx[i,j] = float(temp_line[data_line])
     return(out_mtx)
 
 
@@ -95,7 +95,7 @@ def least_squares_linear_fit(f_name):
         ATA_mtx = np.empty((2,2))
         out_vec = np.empty((2,1))
 
-        data_mtx = parse_data_file(f_name, data_col_0, data_col_1)
+        data_mtx = parse_data_file(f_name, [0,1])
 
         # Initialize the data into our matricies
         for i in range(0,ln_num):
@@ -120,7 +120,7 @@ def least_squares_linear_fit(f_name):
         print(e)
         return()
 
-def std_dev(f_name):
+def std_dev(data):
     """
     Computes the standard deviation of a set of data from a file. Input: filename string
     """
@@ -128,22 +128,11 @@ def std_dev(f_name):
         # initialize needed variables
         data_vec = []
         temp_sum = 0
-        n_bins = 0
         temp = 0
         n = 0
         
-        n_bins = int(input("Enter number of bins to use: "))
-
-        with open(f_name) as f:
-            content = f.readlines()
-
-        for line in content:
-            temp_line = line.split()
-            data_vec.append(int(temp_line[1])) 
-
-        data_vec = np.array(data_vec)
-
-        mean = sum(data_vec) / len(data_vec)
+        data_vec = np.array(data)
+        mean = sum(data_vec)[0] / len(data_vec)
 
         # Begin calculating the standard deviation
         p_sum = 0
@@ -160,19 +149,22 @@ def std_dev(f_name):
                 n = n + 1
 
         print("There are {} items outside of one standard deviation of the mean.".format(n))
-
-        # Plot Histogram and gaussian fit model
-        fig, axs = plt.subplots(1,2)
-        
-        m = modeling.models.Gaussian1D(amplitude=1, mean=mean, stddev=temp)
-        x = np.linspace(min(data_vec), max(data_vec), len(data_vec))
-        data = m(x)
-        data = data + np.sqrt(data) * np.random.random(x.size) - 0.5
-        data -= data.min()
-        axs[0].plot(x, data)
-
-        axs[1].hist(data_vec, n_bins)
-        plt.show() 
-
+        return(mean, temp)
     except Exception as e:
         print("ERROR: {}".format(e))
+
+def fit_gaussian(data_vec, mean, sd):
+    # Plot Histogram and gaussian fit model
+    n_bins = 0
+    n_bins = int(input("Enter number of bins to use: "))
+    fig, axs = plt.subplots(1,2)
+    
+    m = modeling.models.Gaussian1D(amplitude=1, mean=mean, stddev=sd)
+    x = np.linspace(min(data_vec), max(data_vec), len(data_vec))
+    data = m(x)
+    data = data + np.sqrt(data) * np.random.random(x.size) - 0.5
+    data -= data.min()
+    axs[0].plot(x, data)
+
+    axs[1].hist(data_vec, n_bins)
+    plt.show() 
