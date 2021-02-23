@@ -16,6 +16,54 @@ import matplotlib.pyplot as plt
 from astropy import modeling
 import sympy as sym
 
+def plot_2D(x_data, y_data, xaxis_name = None, yaxis_name = None, data_name=None):
+    fig, axs = plt.subplots(1,constrained_layout=True)
+
+    if data_name==None:
+        plot_label = "Data"
+    else:
+        plot_label = "{} data".format(data_name)
+
+    plt.plot(x_data,y_data, '.', label=plot_label)
+
+    if (not xaxis_name==None) and (not yaxis_name==None):
+        plt.xlabel(xaxis_name)
+        plt.ylabel(yaxis_name)
+        axs.legend()
+    plt.show()
+
+def plot_2D_with_fit(x_data, y_data, fit_m, fit_b, num_data, xaxis_name = None, yaxis_name = None, data_name=None):
+    fig, axs = plt.subplots(1,constrained_layout=True)
+    x = np.linspace(min(x_data),max(x_data),num=num_data,endpoint=True)
+    if data_name==None:
+        plot_label = "Data"
+    else:
+        plot_label = "{} data".format(data_name)
+
+    plt.plot(x_data,y_data, '.', label=plot_label)
+
+    plt.plot(x,fit_m * x + fit_b, '-', label="y={:.2f}x+{:.2f}".format(fit_m,fit_b))
+    if (not xaxis_name==None) and (not yaxis_name==None):
+        plt.xlabel(xaxis_name)
+        plt.ylabel(yaxis_name)
+        axs.legend()
+    plt.show()
+
+def parse_data_file(f_name, data_col_0, data_col_1):
+    """Takes a file name, and the column numbers starting from 0 of 2D data.
+    Returns a multidimensional array of containing the data from the givin file name in columns.
+    """
+    ln_num = len(open(f_name).readlines(  ))
+    out_mtx = np.empty((ln_num,2))
+    with open(f_name) as f:
+            content = f.readlines()
+    for i, line in enumerate(content):
+            temp_line = line.split()
+            out_mtx[i,0] = float(temp_line[data_col_0])
+            out_mtx[i,1] = float(temp_line[data_col_1])
+    return(out_mtx)
+
+
 def least_squares_linear_fit(f_name):
     """Takes a filename string as input. We are fitting the equation A_ij*x_j=b_i of the form b=C+Dx.
 
@@ -39,10 +87,6 @@ def least_squares_linear_fit(f_name):
 
         # count number of lines so we can initialize our matricies
         ln_num = len(open(f_name).readlines(  ))
-        print("The number of data lines found is {}.".format(ln_num)) 
-        
-        with open(f_name) as f:
-            content = f.readlines()
 
         # These are our main players
         A_mtx = np.empty((ln_num,2))
@@ -50,13 +94,14 @@ def least_squares_linear_fit(f_name):
         
         ATA_mtx = np.empty((2,2))
         out_vec = np.empty((2,1))
-        
+
+        data_mtx = parse_data_file(f_name, data_col_0, data_col_1)
+
         # Initialize the data into our matricies
-        for i, line in enumerate(content):
-            temp_line = line.split()
-            A_mtx[i,0] = float(temp_line[data_col_0])
+        for i in range(0,ln_num):
+            A_mtx[i,0] = data_mtx[i,0]
             A_mtx[i,1] = float(1)
-            b_vec[i] = float(temp_line[data_col_1])
+            b_vec[i] = data_mtx[i,1]
         
         A_T_mtx = np.transpose(A_mtx)
 
@@ -64,8 +109,10 @@ def least_squares_linear_fit(f_name):
         ATA_mtx = np.linalg.inv(ATA_mtx)
 
         out_vec = np.matmul(np.matmul(ATA_mtx,A_T_mtx),b_vec)
+        
+        print("The coefficents for the line of best fit (y=mx+c) are m={:.4f}, c={:.4f}.".format(out_vec[0,0],out_vec[1,0]))
 
-        print("The coefficents for the line of best fit (y=mx+c) are m={}, c={}.".format(out_vec[0,0],out_vec[1,0]))
+        plot_2D_with_fit(A_mtx[:,0],b_vec,out_vec[0][0],out_vec[1][0], ln_num, data_name=f_name)
         
         return(out_vec)
 
@@ -74,6 +121,9 @@ def least_squares_linear_fit(f_name):
         return()
 
 def std_dev(f_name):
+    """
+    Computes the standard deviation of a set of data from a file. Input: filename string
+    """
     try:
         # initialize needed variables
         data_vec = []
@@ -81,7 +131,7 @@ def std_dev(f_name):
         n_bins = 0
         temp = 0
         n = 0
-
+        
         n_bins = int(input("Enter number of bins to use: "))
 
         with open(f_name) as f:
