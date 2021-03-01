@@ -1,10 +1,11 @@
 # Author: Dalton Tinoco
 # GitHub: https://github.com/ramenspazz
 # This code is provided for free, without any garuntees.
-# Please see attached MIT lisence in the project folder : https://github.com/ramenspazz/Physics-stuff/blob/main/LICENSE
+# Please see attached MIT lisence in the project folder
+# https://github.com/ramenspazz/Physics-stuff/blob/main/LICENSE
 #
 # These functions are designed to do basic data analysis off of a text file.
-# Include this file in your project and pass the function the name of the data-
+# Include this file in your project and pass the functions the name of the data-
 # file you would like to use.
 
 import math
@@ -15,8 +16,31 @@ from scipy.stats import norm
 import matplotlib.pyplot as plt
 from astropy import modeling
 import sympy as sym
+import linecache
+import sys
+
+def PrintException():
+    exc_type, exc_obj, tb = sys.exc_info()
+    f = tb.tb_frame
+    lineno = tb.tb_lineno
+    filename = f.f_code.co_filename
+    linecache.checkcache(filename)
+    line = linecache.getline(filename, lineno, f.f_globals)
+    print('\nEXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj))
+
+# Source
+# https://stackoverflow.com/questions/3410976/how-to-round-a-number-to-significant-figures-in-python
+from math import log10, floor
+def round_sig(x, sig=2):
+    '''
+    Outputs a number truncated to {sig} significant figures. Defaults to two sig-figs.
+    '''
+    return round(x, sig-int(floor(log10(abs(x))))-1)
 
 def plot_2D(x_data, y_data, xaxis_name = None, yaxis_name = None, data_name=None):
+    '''
+    Plots 2D data in a scatter-plot
+    '''
     fig, axs = plt.subplots(1,constrained_layout=True)
 
     if data_name==None:
@@ -33,21 +57,28 @@ def plot_2D(x_data, y_data, xaxis_name = None, yaxis_name = None, data_name=None
     plt.show()
 
 def plot_2D_with_fit(x_data, y_data, fit_m, fit_b, num_data, xaxis_name = None, yaxis_name = None, data_name=None):
-    fig, axs = plt.subplots(1,constrained_layout=True)
-    x = np.linspace(min(x_data),max(x_data),num=num_data,endpoint=True)
-    if data_name==None:
-        plot_label = "Data"
-    else:
-        plot_label = "{} data".format(data_name)
+    '''
+    Plots data with a linear fit overlayed on a scatter-plot of the input data.
+    '''
+    try:
+        fig, axs = plt.subplots(1,constrained_layout=True)
+        x = np.linspace(min(x_data),max(x_data),num=num_data,endpoint=True)
+        if data_name==None:
+            plot_label = "Data"
+        else:
+            plot_label = "{} data".format(data_name)
 
-    plt.plot(x_data,y_data, '.', label=plot_label)
+        plt.plot(x_data,y_data, 'x', label=plot_label)
 
-    plt.plot(x,fit_m * x + fit_b, '-', label="y={:.2f}x+{:.2f}".format(fit_m,fit_b))
-    if (not xaxis_name==None) and (not yaxis_name==None):
-        plt.xlabel(xaxis_name)
-        plt.ylabel(yaxis_name)
-        axs.legend()
-    plt.show()
+        plt.plot(x,fit_m * x + fit_b, '-', label="y={}x+{}".format(round_sig(fit_m),round_sig(fit_b)))
+        if (not xaxis_name==None) and (not yaxis_name==None):
+            plt.xlabel(xaxis_name)
+            plt.ylabel(yaxis_name)
+            plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
+            ncol=2, mode="expand", borderaxespad=0.)
+        plt.show()
+    except Exception as e:
+        PrintException()
 
 def parse_data_file(f_name, data_cols):
     """Takes a file name, and the column numbers starting from 0 of 2D data.
@@ -64,7 +95,7 @@ def parse_data_file(f_name, data_cols):
     return(out_mtx)
 
 
-def least_squares_linear_fit(f_name):
+def least_squares_linear_fit(x_data=None, y_data=None, weight_data=None, f_name=None, data_lines=None):
     """Takes a filename string as input. We are fitting the equation A_ij*x_j=b_i of the form b=C+Dx.
 
     What we are essentially looking for is the projection of b
@@ -81,44 +112,63 @@ def least_squares_linear_fit(f_name):
     """
 
     try:
-        # colums in the data file that represent the domain and range of the data
-        data_col_0 = 0
-        data_col_1 = 1
+        #if one data_mtx xor f_name is defined, do calc
+        if ((x_data is None and y_data is None) or f_name is None) and not((x_data is None and y_data is None) and f_name is None):
+            # colums in the data file that represent the domain and range of the data
+            data_col_0 = 0
+            data_col_1 = 1
 
-        # count number of lines so we can initialize our matricies
-        ln_num = len(open(f_name).readlines(  ))
+            if (x_data is None and y_data is None):
+                ln_num = len(open(f_name).readlines(  ))
+                data_mtx = parse_data_file(f_name, data_lines)
+                A_mtx = np.empty((ln_num,2))
+                b_vec = np.empty((ln_num,1))
+                ATA_mtx = np.empty((2,2))
+                out_vec = np.empty((2,1))
+                # Initialize the data into our matricies
+                for i in range(0,ln_num):
+                    A_mtx[i,0] = data_mtx[i,0]
+                    A_mtx[i,1] = float(1)
+                    b_vec[i] = data_mtx[i,1]
+                # count number of lines so we can initialize our matricies
+            elif len(x_data) == len(y_data):
+                ln_num = len(x_data)
+                A_mtx = np.empty((ln_num,2))
+                b_vec = np.empty((ln_num,1))
+                ATA_mtx = np.empty((2,2))
+                out_vec = np.empty((2,1))
+                for i in range(0,ln_num):
+                    A_mtx[i,0] = x_data[i]
+                    A_mtx[i,1] = float(1)
+                    b_vec[i] = y_data[i]
+            
+            A_T_mtx = np.transpose(A_mtx)
+            # if weight is given compute A^T_W_A
+            if weight_data is None:
+                np.matmul(A_T_mtx,A_mtx,ATA_mtx)
+                ATA_mtx = np.linalg.inv(ATA_mtx)
+                out_vec = np.matmul(np.matmul(ATA_mtx,A_T_mtx),b_vec)
+            else:
+                temp = np.empty((2,ln_num))
+                print(A_T_mtx.shape,weight_data.shape)
+                np.matmul(A_T_mtx,weight_data,temp)
+                np.matmul(temp,A_mtx,ATA_mtx)
+                ATA_mtx = np.linalg.inv(ATA_mtx)
+                out_vec = np.matmul(np.matmul(np.matmul(ATA_mtx,A_T_mtx),weight_data),b_vec)
+            
+            print("The coefficents for the line of best fit (y=mx+c) are m={}, c={}.".format(
+                round_sig(out_vec[0,0]),round_sig(out_vec[1,0])))
 
-        # These are our main players
-        A_mtx = np.empty((ln_num,2))
-        b_vec = np.empty((ln_num,1))
-        
-        ATA_mtx = np.empty((2,2))
-        out_vec = np.empty((2,1))
+            plot_2D_with_fit(A_mtx[:,0],b_vec,out_vec[0][0],out_vec[1][0],
+                ln_num, data_name=f_name, xaxis_name='Voltage',yaxis_name='Count Rate')
 
-        data_mtx = parse_data_file(f_name, [0,1])
-
-        # Initialize the data into our matricies
-        for i in range(0,ln_num):
-            A_mtx[i,0] = data_mtx[i,0]
-            A_mtx[i,1] = float(1)
-            b_vec[i] = data_mtx[i,1]
-        
-        A_T_mtx = np.transpose(A_mtx)
-
-        np.matmul(A_T_mtx,A_mtx,ATA_mtx)
-        ATA_mtx = np.linalg.inv(ATA_mtx)
-
-        out_vec = np.matmul(np.matmul(ATA_mtx,A_T_mtx),b_vec)
-        
-        print("The coefficents for the line of best fit (y=mx+c) are m={:.4f}, c={:.4f}.".format(out_vec[0,0],out_vec[1,0]))
-
-        plot_2D_with_fit(A_mtx[:,0],b_vec,out_vec[0][0],out_vec[1][0], ln_num, data_name=f_name)
-        
-        return(out_vec)
-
+            return([out_vec[0,0],out_vec[1,0]])
+        elif not(data_mtx or f_name):
+            raise Exception("No filename or data array passed!") 
+        else:
+            raise Exception("Idk what happened but it happened...")
     except Exception as e:
-        print(e)
-        return()
+        PrintException()
 
 def std_dev(data):
     """
@@ -142,29 +192,80 @@ def std_dev(data):
 
         temp = math.sqrt(p_sum / (len(data_vec)-1))
 
-        print("The mean is {:.5f} and the stdev is {:.5f}. This does not include sig-figs, remember to do your sig-figs!\n".format(mean, temp))
+        print("The mean is {:.5f} and the stdev is {:.5f}.\n".format(mean, temp))
 
         for item in data_vec:#count the number of data points outside of one standard deviation of the mean
             if (item < mean - temp) or (item > mean + temp):
                 n = n + 1
 
-        print("There are {} items outside of one standard deviation of the mean.".format(n))
+        print("There are {} items ({}%) outside of one standard deviation of the mean.".format(n,100*n/len(data_vec)))
+        
         return(mean, temp)
+
     except Exception as e:
-        print("ERROR: {}".format(e))
+        PrintException()
 
-def fit_gaussian(data_vec, mean, sd):
-    # Plot Histogram and gaussian fit model
-    n_bins = 0
-    n_bins = int(input("Enter number of bins to use: "))
-    fig, axs = plt.subplots(1,2)
-    
-    m = modeling.models.Gaussian1D(amplitude=1, mean=mean, stddev=sd)
-    x = np.linspace(min(data_vec), max(data_vec), len(data_vec))
-    data = m(x)
-    data = data + np.sqrt(data) * np.random.random(x.size) - 0.5
-    data -= data.min()
-    axs[0].plot(x, data)
+def fit_gaussian(data_vec, mean, sd, n_bins=None, bin_width=None):
+    '''
+    Fits a gaussian to a set of data. input, data, mean, standard deviation, optional number of bins.
 
-    axs[1].hist(data_vec, n_bins)
-    plt.show() 
+    For the default number of bins, we are using the Freedman-Diaconis rule.
+    https://en.wikipedia.org/wiki/Freedman%E2%80%93Diaconis_rule
+    '''
+    try:
+        temp = []
+        # sanatize input
+        for item in data_vec:
+            temp.append(item[0])
+        sorted_data = sorted(temp)
+        del temp
+
+        norm_const = float(1/(sd*np.sqrt(2*np.pi)))
+        print('Normalization constant = {}'.format(norm_const))
+        data_min, data_max, data_len = sorted_data[0], sorted_data[len(sorted_data)-1], len(sorted_data)
+
+        x = np.linspace(data_min, data_max, data_len)
+
+        if not (n_bins or bin_width):
+            data_IRQ = np.subtract(*np.percentile(sorted_data, [75, 25]))
+            bin_width = 2*data_IRQ/data_len**float(1/3)
+            n_bins = math.floor((data_max-data_min)/bin_width)
+        elif n_bins and not bin_width:
+            pass
+        elif bin_width:
+            n_bins = math.floor((data_max-data_min)/bin_width)
+        else:
+            raise Exception(
+        'ERROR, Only one optional parameter may be given at a time! Two were passed to define bin width!')
+
+        data_hist, edges = np.histogram(sorted_data, bins=n_bins)
+        for i in range(0,len(edges)):
+            edges[i] = math.floor(edges[i])
+        hist_amplitude = max(data_hist)
+
+        m = modeling.models.Gaussian1D(amplitude=hist_amplitude, mean=mean, stddev=sd)
+        data = m(x)
+
+        fig, axs = plt.subplots(1,constrained_layout=True)
+
+        plt.hist(sorted_data,n_bins,edgecolor='black', linewidth=1.2)
+        plt.plot(x, data, label='Gaussian Fit, $\mu={},\sigma={}$'.format(mean,sd))
+        plt.xlabel('Counts')
+        plt.ylabel('Frequency')
+        plt.xticks(edges,rotation=45)
+        plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
+            ncol=2, mode="expand", borderaxespad=0.)
+        plt.show()
+        
+    except Exception as e:
+        PrintException()
+
+def hacky_bar_hist(data):
+    '''
+    Not yet implimented. Why is it here? No one knows...
+    '''
+    try:
+        pass
+    except Exception as e:
+        print("Error in hacky_bar_hist : {}".format(e))
+        PrintException()
