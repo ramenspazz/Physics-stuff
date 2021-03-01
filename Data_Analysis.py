@@ -119,6 +119,7 @@ def least_squares_linear_fit(x_data=None, y_data=None, weight_data=None, f_name=
             data_col_1 = 1
 
             if (x_data is None and y_data is None):
+                # count number of lines so we can initialize our matricies
                 ln_num = len(open(f_name).readlines(  ))
                 data_mtx = parse_data_file(f_name, data_lines)
                 A_mtx = np.empty((ln_num,2))
@@ -130,7 +131,6 @@ def least_squares_linear_fit(x_data=None, y_data=None, weight_data=None, f_name=
                     A_mtx[i,0] = data_mtx[i,0]
                     A_mtx[i,1] = float(1)
                     b_vec[i] = data_mtx[i,1]
-                # count number of lines so we can initialize our matricies
             elif len(x_data) == len(y_data):
                 ln_num = len(x_data)
                 A_mtx = np.empty((ln_num,2))
@@ -143,21 +143,20 @@ def least_squares_linear_fit(x_data=None, y_data=None, weight_data=None, f_name=
                     b_vec[i] = y_data[i]
             
             A_T_mtx = np.transpose(A_mtx)
-            # if weight is given compute A^T_W_A
             if weight_data is None:
+            # if weight is given compute A^T_W_A
                 np.matmul(A_T_mtx,A_mtx,ATA_mtx)
                 ATA_mtx = np.linalg.inv(ATA_mtx)
                 out_vec = np.matmul(np.matmul(ATA_mtx,A_T_mtx),b_vec)
             else:
                 temp = np.empty((2,ln_num))
-                print(A_T_mtx.shape,weight_data.shape)
                 np.matmul(A_T_mtx,weight_data,temp)
                 np.matmul(temp,A_mtx,ATA_mtx)
                 ATA_mtx = np.linalg.inv(ATA_mtx)
                 out_vec = np.matmul(np.matmul(np.matmul(ATA_mtx,A_T_mtx),weight_data),b_vec)
             
             print("The coefficents for the line of best fit (y=mx+c) are m={}, c={}.".format(
-                round_sig(out_vec[0,0]),round_sig(out_vec[1,0])))
+                round_sig(out_vec[0,0],sig=4),round_sig(out_vec[1,0],sig=4)))
 
             plot_2D_with_fit(A_mtx[:,0],b_vec,out_vec[0][0],out_vec[1][0],
                 ln_num, data_name=f_name, xaxis_name='Voltage',yaxis_name='Count Rate')
@@ -261,9 +260,6 @@ def fit_gaussian(data_vec, mean, sd, n_bins=None, bin_width=None):
         PrintException()
 
 def hacky_bar_hist(data):
-    '''
-    Not yet implimented. Why is it here? No one knows...
-    '''
     try:
         pass
     except Exception as e:
