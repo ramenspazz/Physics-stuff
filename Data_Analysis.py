@@ -56,7 +56,7 @@ def plot_2D(x_data, y_data, xaxis_name = None, yaxis_name = None, data_name=None
         axs.legend()
     plt.show()
 
-def plot_2D_with_fit(x_data, y_data, fit_m, fit_b, num_data, xaxis_name = None, yaxis_name = None, data_name=None):
+def plot_2D_with_fit(x_data, y_data, fit_m, fit_b, num_data, errors=None, xaxis_name = None, yaxis_name = None, data_name=None):
     '''
     Plots data with a linear fit overlayed on a scatter-plot of the input data.
     '''
@@ -67,10 +67,12 @@ def plot_2D_with_fit(x_data, y_data, fit_m, fit_b, num_data, xaxis_name = None, 
             plot_label = "Data"
         else:
             plot_label = "{} data".format(data_name)
-
-        plt.plot(x_data,y_data, 'x', label=plot_label)
-
-        plt.plot(x,fit_m * x + fit_b, '-', label="y={}x+{}".format(round_sig(fit_m),round_sig(fit_b)))
+        
+        plt.scatter(x_data,y_data, marker='x', s=150, label=plot_label)
+        if not errors is None:
+            plt.errorbar(x_data,y_data,yerr=errors, fmt='o')
+        
+        plt.plot(x,fit_m * x + fit_b, '-', label="y={}x+{}".format(round_sig(fit_m,sig=4),round_sig(fit_b,sig=4)))
         if (not xaxis_name==None) and (not yaxis_name==None):
             plt.xlabel(xaxis_name)
             plt.ylabel(yaxis_name)
@@ -95,7 +97,7 @@ def parse_data_file(f_name, data_cols):
     return(out_mtx)
 
 
-def least_squares_linear_fit(x_data=None, y_data=None, weight_data=None, f_name=None, data_lines=None):
+def least_squares_linear_fit(x_data=None, y_data=None, errors=None, weight_data=None, f_name=None, data_lines=None):
     """Takes a filename string as input. We are fitting the equation A_ij*x_j=b_i of the form b=C+Dx.
 
     What we are essentially looking for is the projection of b
@@ -154,12 +156,16 @@ def least_squares_linear_fit(x_data=None, y_data=None, weight_data=None, f_name=
                 np.matmul(temp,A_mtx,ATA_mtx)
                 ATA_mtx = np.linalg.inv(ATA_mtx)
                 out_vec = np.matmul(np.matmul(np.matmul(ATA_mtx,A_T_mtx),weight_data),b_vec)
-            
+                print(out_vec)
             print("The coefficents for the line of best fit (y=mx+c) are m={}, c={}.".format(
-                round_sig(out_vec[0,0],sig=4),round_sig(out_vec[1,0],sig=4)))
-
-            plot_2D_with_fit(A_mtx[:,0],b_vec,out_vec[0][0],out_vec[1][0],
-                ln_num, data_name=f_name, xaxis_name='Voltage',yaxis_name='Count Rate')
+                round_sig(out_vec[0][0],sig=4),round_sig(out_vec[1][0],sig=4)))
+            x_vals = []
+            y_vals = []
+            for i in range(0,ln_num):
+                x_vals.append(A_mtx[i,0])
+                y_vals.append(b_vec[i][0])
+            plot_2D_with_fit(x_vals,y_vals,out_vec[0][0],out_vec[1][0],
+                ln_num, data_name=f_name, xaxis_name='Time (minutes)',yaxis_name='$\log_2(count/min)$', errors=errors)
 
             return([out_vec[0,0],out_vec[1,0]])
         elif not(data_mtx or f_name):
