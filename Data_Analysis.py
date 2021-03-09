@@ -68,12 +68,12 @@ def plot_2D_with_fit(x_data, y_data, fit_m, fit_b, num_data, errors=None, xaxis_
         else:
             plot_label = "{} data".format(data_name)
         
-        plt.scatter(x_data,y_data, marker='x', s=150, label=plot_label)
+        plt.scatter(x_data,y_data, marker='.', s=150, label=plot_label)
         if not errors is None:
-            plt.errorbar(x_data,y_data,yerr=errors, fmt='o')
+            plt.errorbar(x_data,y_data,yerr=errors, fmt='.')
         
         plt.plot(x,fit_m * x + fit_b, '-', label="y={}x+{}".format(round_sig(fit_m,sig=4),round_sig(fit_b,sig=4)))
-        if (not xaxis_name==None) and (not yaxis_name==None):
+        if not(xaxis_name is None) and not(yaxis_name is None):
             plt.xlabel(xaxis_name)
             plt.ylabel(yaxis_name)
             plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
@@ -97,7 +97,7 @@ def parse_data_file(f_name, data_cols):
     return(out_mtx)
 
 
-def least_squares_linear_fit(x_data=None, y_data=None, errors=None, weight_data=None, f_name=None, data_lines=None):
+def least_squares_linear_fit(x_data=None, y_data=None, errors=None, weight_data=None, xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None):
     """Takes a filename string as input. We are fitting the equation A_ij*x_j=b_i of the form b=C+Dx.
 
     What we are essentially looking for is the projection of b
@@ -164,8 +164,12 @@ def least_squares_linear_fit(x_data=None, y_data=None, errors=None, weight_data=
             for i in range(0,ln_num):
                 x_vals.append(A_mtx[i,0])
                 y_vals.append(b_vec[i][0])
-            plot_2D_with_fit(x_vals,y_vals,out_vec[0][0],out_vec[1][0],
-                ln_num, data_name=f_name, xaxis_name='Time (minutes)',yaxis_name='$\log_2(count/min)$', errors=errors)
+            if (xaxis_name is None) and (yaxis_name is None):
+                plot_2D_with_fit(x_vals,y_vals,out_vec[0][0],out_vec[1][0],
+                    ln_num, data_name=data_name, errors=errors)
+            else:
+                plot_2D_with_fit(x_vals,y_vals,out_vec[0][0],out_vec[1][0],
+                    ln_num, data_name=data_name, xaxis_name=xaxis_name,yaxis_name=yaxis_name, errors=errors)
 
             return([out_vec[0,0],out_vec[1,0]])
         elif not(data_mtx or f_name):
@@ -186,26 +190,32 @@ def std_dev(data):
         temp = 0
         n = 0
         
-        data_vec = np.array(data)
+        data_vec = data
         mean = sum(data_vec)[0] / len(data_vec)
-
+        
         # Begin calculating the standard deviation
         p_sum = 0
 
         for item in data_vec:# compute the inner sum of the standard deviation
             p_sum = p_sum + (item - mean)**2
 
-        temp = math.sqrt(p_sum / (len(data_vec)-1))
+        sample_standard_deviation = math.sqrt(p_sum / (len(data_vec)-1))
 
-        print("The mean is {:.5f} and the stdev is {:.5f}.\n".format(mean, temp))
-
+        print("The mean is {:.5f}\nThe stdev is {:.5f}.\n".format(mean, sample_standard_deviation))
+        if len(data_vec)%2 == 0:
+            median = (data_vec[int(len(data_vec)/2)][0] +  data_vec[int(len(data_vec)/2)+1][0])/2
+        else:
+            median = data_vec[int(len(data_vec)/2)+1]
+        minimum = min(data_vec)[0]
+        maximum = max(data_vec)[0]
+        print("The median is {:.2f}\nThe min and max are {:.2f} and {:.2f}.\n".format(median,minimum,maximum))
         for item in data_vec:#count the number of data points outside of one standard deviation of the mean
-            if (item < mean - temp) or (item > mean + temp):
+            if (item < mean - sample_standard_deviation) or (item > mean + sample_standard_deviation):
                 n = n + 1
 
         print("There are {} items ({}%) outside of one standard deviation of the mean.".format(n,100*n/len(data_vec)))
         
-        return(mean, temp)
+        return(mean, sample_standard_deviation)
 
     except Exception as e:
         PrintException()
@@ -231,7 +241,9 @@ def fit_gaussian(data_vec, mean, sd, n_bins=None, bin_width=None):
 
         x = np.linspace(data_min, data_max, data_len)
 
-        if not (n_bins or bin_width):
+        if not (n_bins is None or bin_width is None):
+            raise Exception('ERROR, Only one optional parameter may be given at a time! Two were passed to define bin width!')
+        elif not (n_bins or bin_width):
             data_IRQ = np.subtract(*np.percentile(sorted_data, [75, 25]))
             bin_width = 2*data_IRQ/data_len**float(1/3)
             n_bins = math.floor((data_max-data_min)/bin_width)
@@ -239,14 +251,12 @@ def fit_gaussian(data_vec, mean, sd, n_bins=None, bin_width=None):
             pass
         elif bin_width:
             n_bins = math.floor((data_max-data_min)/bin_width)
-        else:
-            raise Exception(
-        'ERROR, Only one optional parameter may be given at a time! Two were passed to define bin width!')
-
+        
         data_hist, edges = np.histogram(sorted_data, bins=n_bins)
-        for i in range(0,len(edges)):
-            edges[i] = math.floor(edges[i])
         hist_amplitude = max(data_hist)
+        new_edges = []
+        for i in range(0,len(edges)):
+            edges[i] = data_min+i*bin_width
 
         m = modeling.models.Gaussian1D(amplitude=hist_amplitude, mean=mean, stddev=sd)
         data = m(x)
@@ -254,7 +264,7 @@ def fit_gaussian(data_vec, mean, sd, n_bins=None, bin_width=None):
         fig, axs = plt.subplots(1,constrained_layout=True)
 
         plt.hist(sorted_data,n_bins,edgecolor='black', linewidth=1.2)
-        plt.plot(x, data, label='Gaussian Fit, $\mu={},\sigma={}$'.format(mean,sd))
+        plt.plot(x, data, label='Gaussian Fit, $\mu={:.1f},\sigma={:.1f}$'.format(round_sig(mean),round_sig(sd)))
         plt.xlabel('Counts')
         plt.ylabel('Frequency')
         plt.xticks(edges,rotation=45)
