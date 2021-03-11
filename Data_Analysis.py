@@ -19,6 +19,15 @@ import sympy as sym
 import linecache
 import sys
 
+def ndarray_to_list(data_list):
+    array = []
+    for i, item in enumerate(data_list):
+        if type(item) == list or type(item) == np.ndarray:
+            array.append(*item)
+        elif float(item):
+            array.append(item)
+    return(array)
+
 def PrintException():
     exc_type, exc_obj, tb = sys.exc_info()
     f = tb.tb_frame
@@ -105,7 +114,7 @@ def least_squares_linear_fit(x_data=None, y_data=None, errors=None, weight_data=
     This takes the form of solution_vec<=>A_ij*x_i(a_i*b_i/(b_i*b_i))b_j
     with an associated error of error_vec=b_i-solution_vec_i such
     that the error is related to the length of this vector.
-    we assume that the data we are being passed is of this form
+    We assume that the data we are being passed is of this form
     {float} {whitespace} {float}
     where the first column will represent the domain and the
     second column will represent the range of data.
@@ -156,9 +165,10 @@ def least_squares_linear_fit(x_data=None, y_data=None, errors=None, weight_data=
                 np.matmul(temp,A_mtx,ATA_mtx)
                 ATA_mtx = np.linalg.inv(ATA_mtx)
                 out_vec = np.matmul(np.matmul(np.matmul(ATA_mtx,A_T_mtx),weight_data),b_vec)
-                print(out_vec)
+
             print("The coefficents for the line of best fit (y=mx+c) are m={}, c={}.".format(
                 round_sig(out_vec[0][0],sig=4),round_sig(out_vec[1][0],sig=4)))
+                
             x_vals = []
             y_vals = []
             for i in range(0,ln_num):
@@ -179,43 +189,60 @@ def least_squares_linear_fit(x_data=None, y_data=None, errors=None, weight_data=
     except Exception as e:
         PrintException()
 
-def std_dev(data):
+def data_mean(data_vec):
+    return sum(data_vec) / len(data_vec)
+
+def std_dev(data, mean, sample=True):
+    p_sum = 0
+    for item in data:# compute the inner sum of the standard deviation
+        p_sum = p_sum + (item - mean)**2
+    if sample is True:
+        standard_deviation = math.sqrt(p_sum / (len(data)-1))
+        
+    elif sample is False:
+        standard_deviation = math.sqrt(p_sum / (len(data)))
+    return(standard_deviation)
+
+def ordinal_stats():
+    try:
+        minimum = sorted_vec[0]
+        maximum = sorted_vec[len(sorted_vec)-1]
+        if len(sorted_vec)%2 == 0:
+            median = float(sorted_vec[int(len(sorted_vec)/2)-1] + sorted_vec[int(len(sorted_vec)/2)])/2
+        else:
+            median = sorted_vec[int(len(sorted_vec)/2)]
+        return(minimum,maximum,median)
+    except Exception as e:
+        PrintException()
+
+def stats(data, sample=True):
     """
-    Computes the standard deviation of a set of data from a file. Input: filename string
+    Computes the general statisticts on a set on a 1D set of data. Input: list of numbers
     """
     try:
         # initialize needed variables
-        data_vec = []
-        temp_sum = 0
-        temp = 0
         n = 0
-        
-        data_vec = data
-        mean = sum(data_vec)[0] / len(data_vec)
-        
-        # Begin calculating the standard deviation
-        p_sum = 0
 
-        for item in data_vec:# compute the inner sum of the standard deviation
-            p_sum = p_sum + (item - mean)**2
+        if type(data) == np.ndarray:
+            data_vec = ndarray_to_list(data)
+        elif type(data) == list:
+            data_vec = data
 
-        sample_standard_deviation = math.sqrt(p_sum / (len(data_vec)-1))
+        sorted_vec = sorted(data_vec)
+        standard_deviation = std_dev(sorted_vec, sample=sample)
+        mean = data_mean(sorted_vec)
 
-        print("The mean is {:.5f}\nThe stdev is {:.5f}.\n".format(mean, sample_standard_deviation))
-        if len(data_vec)%2 == 0:
-            median = (data_vec[int(len(data_vec)/2)][0] +  data_vec[int(len(data_vec)/2)+1][0])/2
-        else:
-            median = data_vec[int(len(data_vec)/2)+1]
-        minimum = min(data_vec)[0]
-        maximum = max(data_vec)[0]
-        print("The median is {:.2f}\nThe min and max are {:.2f} and {:.2f}.\n".format(median,minimum,maximum))
-        for item in data_vec:#count the number of data points outside of one standard deviation of the mean
-            if (item < mean - sample_standard_deviation) or (item > mean + sample_standard_deviation):
+        minimum, maximum, median = ordinal_stats(sorted_data)    
+
+        for item in sorted_vec:#count the number of data points outside of one standard deviation of the mean
+            if (item < mean - standard_deviation) or (item > mean + standard_deviation):
                 n = n + 1
 
-        print("There are {} items ({}%) outside of one standard deviation of the mean.".format(n,100*n/len(data_vec)))
+        print("The mean is {:.5f}\nThe sample stdev is {:.5f}.".format(mean, standard_deviation))
+        print("The median is {:.2f}\nThe min and max are {:.2f} and {:.2f}.".format(median,minimum,maximum))
+        print("There are {} items ({}%) outside of one standard deviation of the mean.\n".format(n,100*n/len(data_vec)))
         
-        return(mean, sample_standard_deviation)
+        return(minimum, maximum, median, mean, standard_deviation)
 
     except Exception as e:
         PrintException()
@@ -274,6 +301,15 @@ def fit_gaussian(data_vec, mean, sd, n_bins=None, bin_width=None):
         
     except Exception as e:
         PrintException()
+
+def covariance():
+    cov_xy = 0
+    n=0
+    for i, j in zip(hw6_x,hw6_y):
+        cov_xy += (i-ma)*(j-mb)
+        n += 1
+    cov_xy = cov_xy/len(hw6_x)
+    r = cov_xy/(sa*sb)
 
 def hacky_bar_hist(data):
     try:
