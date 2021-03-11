@@ -37,13 +37,13 @@ def PrintException():
     line = linecache.getline(filename, lineno, f.f_globals)
     print('\nEXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj))
 
-# Source
-# https://stackoverflow.com/questions/3410976/how-to-round-a-number-to-significant-figures-in-python
 from math import log10, floor
 def round_sig(x, sig=2):
     '''
     Outputs a number truncated to {sig} significant figures. Defaults to two sig-figs.
     '''
+    # Source
+    # https://stackoverflow.com/questions/3410976/how-to-round-a-number-to-significant-figures-in-python
     return round(x, sig-int(floor(log10(abs(x))))-1)
 
 def plot_2D(x_data, y_data, xaxis_name = None, yaxis_name = None, data_name=None):
