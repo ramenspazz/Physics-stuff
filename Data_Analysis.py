@@ -95,18 +95,34 @@ def parse_data_file(f_name, data_cols):
     """Takes a file name, and the column numbers starting from 0 of 2D data.
     Returns a multidimensional array of containing the data from the givin file name in columns.
     """
-    ln_num = len(open(f_name).readlines(  ))
-    out_mtx = np.empty((ln_num,len(data_cols)))
-    with open(f_name) as f:
-            content = f.readlines()
-    for i, line in enumerate(content):
-            temp_line = line.split()
-            for j, data_line in enumerate(data_cols):
-                out_mtx[i,j] = float(temp_line[data_line])
-    return(out_mtx)
+    try:
+        ln_num = len(open(f_name).readlines(  ))
+        if len(data_cols) == 1:
+            out_data = np.zeros(ln_num)
+            with open(f_name) as f:
+                content = f.readlines()
+            data_line = data_cols[0]
+            for i, line in enumerate(content):
+                temp_line = line.split()
+                out_data[i] = float(temp_line[data_line])
+        elif len(data_cols) > 1:
+            out_data = np.empty((ln_num,len(data_cols)))
+            with open(f_name) as f:
+                    content = f.readlines()
+            for i, line in enumerate(content):
+                temp_line = line.split()
+                for j, data_line in enumerate(data_cols):
+                    out_data[i,j] = float(temp_line[data_line])
+        return(out_data)
+    except Exception as e:
+        PrintException()
 
+def total_least_squares_linear_fit(x_data=None, y_data=None, errors=None, weight_data=None,
+xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None):
+    pass
 
-def least_squares_linear_fit(x_data=None, y_data=None, errors=None, weight_data=None, xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None):
+def least_squares_linear_fit(x_data=None, y_data=None, errors=None, weight_data=None,
+xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None):
     """Takes a filename string as input. We are fitting the equation A_ij*x_j=b_i of the form b=C+Dx.
 
     What we are essentially looking for is the projection of b
@@ -203,7 +219,7 @@ def std_dev(data, mean, sample=True):
         standard_deviation = math.sqrt(p_sum / (len(data)))
     return(standard_deviation)
 
-def ordinal_stats():
+def ordinal_stats(sorted_vec):
     try:
         minimum = sorted_vec[0]
         maximum = sorted_vec[len(sorted_vec)-1]
@@ -229,10 +245,10 @@ def stats(data, sample=True):
             data_vec = data
 
         sorted_vec = sorted(data_vec)
-        standard_deviation = std_dev(sorted_vec, sample=sample)
         mean = data_mean(sorted_vec)
+        standard_deviation = std_dev(sorted_vec, mean, sample=sample)
 
-        minimum, maximum, median = ordinal_stats(sorted_data)    
+        minimum, maximum, median = ordinal_stats(sorted_vec)    
 
         for item in sorted_vec:#count the number of data points outside of one standard deviation of the mean
             if (item < mean - standard_deviation) or (item > mean + standard_deviation):
@@ -247,7 +263,7 @@ def stats(data, sample=True):
     except Exception as e:
         PrintException()
 
-def fit_gaussian(data_vec, mean, sd, n_bins=None, bin_width=None):
+def fit_gaussian(data, mean, sd, n_bins=None, bin_width=None):
     '''
     Fits a gaussian to a set of data. input, data, mean, standard deviation, optional number of bins.
 
@@ -257,10 +273,11 @@ def fit_gaussian(data_vec, mean, sd, n_bins=None, bin_width=None):
     try:
         temp = []
         # sanatize input
-        for item in data_vec:
-            temp.append(item[0])
-        sorted_data = sorted(temp)
-        del temp
+        if type(data) == np.ndarray:
+            data_vec = ndarray_to_list(data)
+        elif type(data) == list:
+            data_vec = data
+        sorted_data = sorted(data_vec)
 
         norm_const = float(1/(sd*np.sqrt(2*np.pi)))
         print('Normalization constant = {}'.format(norm_const))
