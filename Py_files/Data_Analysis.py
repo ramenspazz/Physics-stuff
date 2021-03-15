@@ -11,8 +11,6 @@
 import math
 import re
 import numpy as np
-import numpy as np
-from scipy.stats import norm
 import matplotlib.pyplot as plt
 from astropy import modeling
 import sympy as sym
