@@ -17,20 +17,6 @@ import sympy as sym
 import linecache
 import sys
 
-def ndarray_to_list(data_list):
-    array = []
-    if type(data_list) == np.matrix:
-        size = np.shape(data_list)
-        for i in range(size[0]):
-            for j in range(size[1]):
-                array.append(data_list[i,j])
-    else:
-        for i, item in enumerate(data_list):
-            if type(item) == list or type(item) == np.ndarray:
-                array.append(*item)
-            elif float(item):
-                array.append(item)
-    return(array)
 
 def PrintException():
     # Source : https://stackoverflow.com/questions/14519177/python-exception-handling-line-number
@@ -50,6 +36,21 @@ def round_sig(x, sig=2):
     # Source
     # https://stackoverflow.com/questions/3410976/how-to-round-a-number-to-significant-figures-in-python
     return round(x, sig-int(floor(log10(abs(x))))-1)
+
+def ndarray_to_list(data_list):
+    array = []
+    if type(data_list) == np.matrix:
+        size = np.shape(data_list)
+        for i in range(size[0]):
+            for j in range(size[1]):
+                array.append(data_list[i,j])
+    else:
+        for i, item in enumerate(data_list):
+            if type(item) == list or type(item) == np.ndarray:
+                array.append(*item)
+            elif float(item):
+                array.append(item)
+    return(array)
 
 def plot_2D(x_data, y_data, xaxis_name = None, yaxis_name = None, data_name=None):
     '''
@@ -93,7 +94,7 @@ def plot_2D_with_fit(x_data, y_data, fit_m, fit_b, num_data, errors=None, xaxis_
             plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
             ncol=2, mode='expand', borderaxespad=0.)
         plt.show()
-    except Exception as e:
+    except:
         PrintException()
 
 def parse_data_file(f_name, data_cols):
@@ -119,7 +120,7 @@ def parse_data_file(f_name, data_cols):
                 for j, data_line in enumerate(data_cols):
                     out_data[i,j] = float(temp_line[data_line])
         return(out_data)
-    except Exception as e:
+    except:
         PrintException()
 
 def LS_fit(x_data,y_data):
@@ -140,7 +141,7 @@ def LS_fit(x_data,y_data):
     return(xtilde)
 
 def least_squares_linear_fit(x_data=None, y_data=None, errors=None, weight_data=None,
-xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None):
+xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None, quiet=True):
     """Takes a filename string or x and y data as input. We are fitting the equation A_ij*x_j=b_i of the form b=C+Dx.
 
     We assume that the data we are being passed is of this form
@@ -182,18 +183,12 @@ xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None):
             
             A_T_mtx = np.transpose(A_mtx)
             if weight_data is None:
-            # if weight is given compute A^T_W_A
-                ATA_mtx = A_T_mtx @ A_mtx
-                ATAinv_mtx = np.linalg.inv(ATA_mtx)
-                out_vec = ATAinv_mtx @ A_T_mtx @ b_vec
+                out_vec = np.linalg.inv(A_T_mtx @ A_mtx) @ A_T_mtx @ b_vec
             else:
-                # temp = np.empty((2,ln_num))
-                temp = A_T_mtx @ weight_data
-                ATA_mtx = temp @ A_mtx
-                out_vec = np.linalg.inv(ATA_mtx) @ A_T_mtx @ weight_data @ b_vec
+            # if weight is given compute A^T_W_A
+                out_vec = np.linalg.inv(A_T_mtx @ weight_data @ A_mtx) @ A_T_mtx @ weight_data @ b_vec
 
-
-            print(f'The coefficents for the line of best fit (y=mx+c) are m={round_sig(out_vec[0,0],sig=4)}, c={round_sig(out_vec[1,0],sig=4)}.')
+            fit_string = f'The coefficents for the line of best fit (y=mx+c) are m={round_sig(out_vec[0,0],sig=4)}, c={round_sig(out_vec[1,0],sig=4)}.'
                 
             x_vals = []
             y_vals = []
@@ -206,13 +201,16 @@ xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None):
             else:
                 plot_2D_with_fit(x_vals,y_vals,out_vec[0][0],out_vec[1][0],
                     ln_num, data_name=data_name, xaxis_name=xaxis_name,yaxis_name=yaxis_name, errors=errors)
-
-            return([out_vec[0,0],out_vec[1,0]])
+            if not quiet:
+                print(fit_string)
+                return([out_vec[0,0],out_vec[1,0]])
+            else:
+                return([out_vec[0,0],out_vec[1,0]], fit_string)
         elif not(data_mtx or f_name):
             raise Exception('No filename or data array passed!') 
         else:
             raise Exception('Idk what happened, but it happened...')
-    except Exception as e:
+    except:
         PrintException()
 
 def data_mean(data_vec):
@@ -238,7 +236,7 @@ def ordinal_stats(sorted_vec):
         else:
             median = sorted_vec[int(len(sorted_vec)/2)]
         return(minimum,maximum,median)
-    except Exception as e:
+    except:
         PrintException()
         
 def covariance(x,y):
@@ -253,7 +251,7 @@ def covariance(x,y):
         cov_xy = cov_xy/len(x)
         r = cov_xy/(sx*sy)
         return(cov_xy,r)
-    except Exception as e:
+    except:
         PrintException()
 
 def stats(data, sample=True, quiet=False):
@@ -285,7 +283,7 @@ def stats(data, sample=True, quiet=False):
         
         return(minimum, maximum, median, mean, standard_deviation)
 
-    except Exception as e:
+    except:
         PrintException()
 
 def fit_gaussian(data, mean, sd, n_bins=None, bin_width=None, quiet=True):
@@ -342,5 +340,5 @@ def fit_gaussian(data, mean, sd, n_bins=None, bin_width=None, quiet=True):
             ncol=2, mode='expand', borderaxespad=0.)
         plt.show()
         return(norm_const)
-    except Exception as e:
+    except:
         PrintException()
