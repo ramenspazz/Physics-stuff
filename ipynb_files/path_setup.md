@@ -7,7 +7,5 @@ import path_setup
 > Add these lines to your code:
 ```python
 nb_dir = path_setup.path_setup()
-```
-```python
 data_dir = nb_dir + '/Data/'
 ```
