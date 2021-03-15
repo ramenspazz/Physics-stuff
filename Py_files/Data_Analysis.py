@@ -21,11 +21,17 @@ import sys
 
 def ndarray_to_list(data_list):
     array = []
-    for i, item in enumerate(data_list):
-        if type(item) == list or type(item) == np.ndarray:
-            array.append(*item)
-        elif float(item):
-            array.append(item)
+    if type(data_list) == np.matrix:
+        size = np.shape(data_list)
+        for i in range(size[0]):
+            for j in range(size[1]):
+                array.append(data_list[i,j])
+    else:
+        for i, item in enumerate(data_list):
+            if type(item) == list or type(item) == np.ndarray:
+                array.append(*item)
+            elif float(item):
+                array.append(item)
     return(array)
 
 def PrintException():
@@ -118,25 +124,31 @@ def parse_data_file(f_name, data_cols):
     except Exception as e:
         PrintException()
 
-def total_least_squares_linear_fit(x_data=None, y_data=None, errors=None, weight_data=None,
-xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None):
-    pass
+def LS_fit(x_data,y_data):
+    """
+    We seek to solve Ax=b
+    """
+    a = np.zeros((len(x_data),2))
+    for i in range(len(x_data)):
+        a[i,0] = x_data[i]
+        a[i,1] = 1
+    b = y_data
+
+    U, S, VT = np.linalg.svd(a,full_matrices=False)
+    S = np.diag(S)
+
+    xtilde = VT.T @ np.linalg.inv(S) @ U.T @ b
+
+    return(xtilde)
 
 def least_squares_linear_fit(x_data=None, y_data=None, errors=None, weight_data=None,
 xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None):
-    """Takes a filename string as input. We are fitting the equation A_ij*x_j=b_i of the form b=C+Dx.
+    """Takes a filename string or x and y data as input. We are fitting the equation A_ij*x_j=b_i of the form b=C+Dx.
 
-    What we are essentially looking for is the projection of b
-    onto the plane created by the column-space of A_ij.
-    This takes the form of solution_vec<=>A_ij*x_i(a_i*b_i/(b_i*b_i))b_j
-    with an associated error of error_vec=b_i-solution_vec_i such
-    that the error is related to the length of this vector.
     We assume that the data we are being passed is of this form
     {float} {whitespace} {float}
     where the first column will represent the domain and the
     second column will represent the range of data.
-    Note: If your data does not fit the format, you can change the data-
-    line numbers data_col_0 and data_col_1.
     """
 
     try:
@@ -173,24 +185,24 @@ xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None):
             A_T_mtx = np.transpose(A_mtx)
             if weight_data is None:
             # if weight is given compute A^T_W_A
-                np.matmul(A_T_mtx,A_mtx,ATA_mtx)
-                ATA_mtx = np.linalg.inv(ATA_mtx)
-                out_vec = np.matmul(np.matmul(ATA_mtx,A_T_mtx),b_vec)
+                ATA_mtx = A_T_mtx @ A_mtx
+                ATAinv_mtx = np.linalg.inv(ATA_mtx)
+                out_vec = ATAinv_mtx @ A_T_mtx @ b_vec
             else:
-                temp = np.empty((2,ln_num))
-                np.matmul(A_T_mtx,weight_data,temp)
-                np.matmul(temp,A_mtx,ATA_mtx)
-                ATA_mtx = np.linalg.inv(ATA_mtx)
-                out_vec = np.matmul(np.matmul(np.matmul(ATA_mtx,A_T_mtx),weight_data),b_vec)
+                # temp = np.empty((2,ln_num))
+                temp = A_T_mtx @ weight_data
+                ATA_mtx = temp @ A_mtx
+                out_vec = np.linalg.inv(ATA_mtx) @ A_T_mtx @ weight_data @ b_vec
+
 
             print("The coefficents for the line of best fit (y=mx+c) are m={}, c={}.".format(
-                round_sig(out_vec[0][0],sig=4),round_sig(out_vec[1][0],sig=4)))
+                round_sig(out_vec[0,0],sig=4),round_sig(out_vec[1,0],sig=4)))
                 
             x_vals = []
             y_vals = []
             for i in range(0,ln_num):
                 x_vals.append(A_mtx[i,0])
-                y_vals.append(b_vec[i][0])
+                y_vals.append(b_vec[i,0])
             if (xaxis_name is None) and (yaxis_name is None):
                 plot_2D_with_fit(x_vals,y_vals,out_vec[0][0],out_vec[1][0],
                     ln_num, data_name=data_name, errors=errors)
@@ -231,8 +243,23 @@ def ordinal_stats(sorted_vec):
         return(minimum,maximum,median)
     except Exception as e:
         PrintException()
+        
+def covariance(x,y):
+    try:
+        cov_xy = 0
+        n=0
+        xmin,xmax,xmed,xm,sx = stats(x)
+        ymin,ymay,ymed,ym,sy = stats(x)
+        for i, j in zip(x,y):
+            cov_xy += (i-xm)*(j-ym)
+            n += 1
+        cov_xy = cov_xy/len(x)
+        r = cov_xy/(sx*sy)
+        return(cov_xy,r)
+    except Exception as e:
+        PrintException()
 
-def stats(data, sample=True):
+def stats(data, sample=True, output=True):
     """
     Computes the general statisticts on a set on a 1D set of data. Input: list of numbers
     """
@@ -254,11 +281,11 @@ def stats(data, sample=True):
         for item in sorted_vec:#count the number of data points outside of one standard deviation of the mean
             if (item < mean - standard_deviation) or (item > mean + standard_deviation):
                 n = n + 1
-
-        print("The mean is {:.5f}\nThe sample stdev is {:.5f}.".format(mean, standard_deviation))
-        print("The median is {:.2f}\nThe min and max are {:.2f} and {:.2f}.".format(median,minimum,maximum))
-        print("There are {} items ({}%) outside of one standard deviation of the mean.\n".format(
-            n,100*n/len(data_vec)))
+        if output:
+            print("The mean is {:.5f}\nThe sample stdev is {:.5f}.".format(mean, standard_deviation))
+            print("The median is {:.2f}\nThe min and max are {:.2f} and {:.2f}.".format(median,minimum,maximum))
+            print("There are {} items ({}%) outside of one standard deviation of the mean.\n".format(
+                n,100*n/len(data_vec)))
         
         return(minimum, maximum, median, mean, standard_deviation)
 
@@ -320,20 +347,4 @@ def fit_gaussian(data, mean, sd, n_bins=None, bin_width=None):
         plt.show()
         
     except Exception as e:
-        PrintException()
-
-def covariance():
-    cov_xy = 0
-    n=0
-    for i, j in zip(hw6_x,hw6_y):
-        cov_xy += (i-ma)*(j-mb)
-        n += 1
-    cov_xy = cov_xy/len(hw6_x)
-    r = cov_xy/(sa*sb)
-
-def hacky_bar_hist(data):
-    try:
-        pass
-    except Exception as e:
-        print("Error in hacky_bar_hist : {}".format(e))
         PrintException()
