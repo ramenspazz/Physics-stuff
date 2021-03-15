@@ -35,6 +35,7 @@ def ndarray_to_list(data_list):
     return(array)
 
 def PrintException():
+    # Source : https://stackoverflow.com/questions/14519177/python-exception-handling-line-number
     exc_type, exc_obj, tb = sys.exc_info()
     f = tb.tb_frame
     lineno = tb.tb_lineno
