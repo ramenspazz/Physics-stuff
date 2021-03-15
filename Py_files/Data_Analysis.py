@@ -87,7 +87,7 @@ def plot_2D_with_fit(x_data, y_data, fit_m, fit_b, num_data, errors=None, xaxis_
         if not errors is None:
             plt.errorbar(x_data,y_data,yerr=errors, fmt='.')
         
-        plt.plot(x,fit_m * x + fit_b, '-', label=f'y={round_sig(fit_m,sig=4)}x+{round_sig(fit_b,sig=4)}')
+        plt.plot(x,fit_m * x + fit_b, '-', label=f'y={round_sig(fit_m,sig=4)}x+({round_sig(fit_b,sig=4)})')
         if not(xaxis_name is None) and not(yaxis_name is None):
             plt.xlabel(xaxis_name)
             plt.ylabel(yaxis_name)
@@ -140,7 +140,7 @@ def LS_fit(x_data,y_data):
 
     return(xtilde)
 
-def least_squares_linear_fit(x_data=None, y_data=None, errors=None, weight_data=None,
+def ORD_fit(x_data=None, y_data=None, errors=None, weight_data=None,
 xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None, quiet=True):
     """Takes a filename string or x and y data as input. We are fitting the equation A_ij*x_j=b_i of the form b=C+Dx.
 
@@ -153,10 +153,6 @@ xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None, 
     try:
         #if one data_mtx xor f_name is defined, do calc
         if ((x_data is None and y_data is None) or f_name is None) and not((x_data is None and y_data is None) and f_name is None):
-            # colums in the data file that represent the domain and range of the data
-            data_col_0 = 0
-            data_col_1 = 1
-
             if (x_data is None and y_data is None):
                 # count number of lines so we can initialize our matricies
                 ln_num = len(open(f_name).readlines(  ))
@@ -190,19 +186,19 @@ xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None, 
 
             fit_string = f'The coefficents for the line of best fit (y=mx+c) are m={round_sig(out_vec[0,0],sig=4)}, c={round_sig(out_vec[1,0],sig=4)}.'
                 
-            x_vals = []
-            y_vals = []
-            for i in range(0,ln_num):
-                x_vals.append(A_mtx[i,0])
-                y_vals.append(b_vec[i,0])
-            if (xaxis_name is None) and (yaxis_name is None):
-                plot_2D_with_fit(x_vals,y_vals,out_vec[0][0],out_vec[1][0],
-                    ln_num, data_name=data_name, errors=errors)
-            else:
-                plot_2D_with_fit(x_vals,y_vals,out_vec[0][0],out_vec[1][0],
-                    ln_num, data_name=data_name, xaxis_name=xaxis_name,yaxis_name=yaxis_name, errors=errors)
             if not quiet:
                 print(fit_string)
+                x_vals = []
+                y_vals = []
+                for i in range(0,ln_num):
+                    x_vals.append(A_mtx[i,0])
+                    y_vals.append(b_vec[i,0])
+                if (xaxis_name is None) and (yaxis_name is None):
+                    plot_2D_with_fit(x_vals,y_vals,out_vec[0][0],out_vec[1][0],
+                        ln_num, data_name=data_name, errors=errors)
+                else:
+                    plot_2D_with_fit(x_vals,y_vals,out_vec[0][0],out_vec[1][0],
+                        ln_num, data_name=data_name, xaxis_name=xaxis_name,yaxis_name=yaxis_name, errors=errors)
                 return([out_vec[0,0],out_vec[1,0]])
             else:
                 return([out_vec[0,0],out_vec[1,0]], fit_string)
