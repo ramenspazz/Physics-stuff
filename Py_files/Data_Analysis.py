@@ -41,7 +41,7 @@ def PrintException():
     filename = f.f_code.co_filename
     linecache.checkcache(filename)
     line = linecache.getline(filename, lineno, f.f_globals)
-    print('\nEXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj))
+    print(f'\nEXCEPTION IN ({filename}, LINE {lineno} "{line.strip()}"): {exc_obj}')
 
 from math import log10, floor
 def round_sig(x, sig=2):
@@ -59,9 +59,9 @@ def plot_2D(x_data, y_data, xaxis_name = None, yaxis_name = None, data_name=None
     fig, axs = plt.subplots(1,constrained_layout=True)
 
     if data_name==None:
-        plot_label = "Data"
+        plot_label = 'Data'
     else:
-        plot_label = "{} data".format(data_name)
+        plot_label = f'{data_name} data'
 
     plt.plot(x_data,y_data, '.', label=plot_label)
 
@@ -79,21 +79,20 @@ def plot_2D_with_fit(x_data, y_data, fit_m, fit_b, num_data, errors=None, xaxis_
         fig, axs = plt.subplots(1,constrained_layout=True)
         x = np.linspace(min(x_data),max(x_data),num=num_data,endpoint=True)
         if data_name==None:
-            plot_label = "Data"
+            plot_label = 'Data'
         else:
-            plot_label = "{} data".format(data_name)
+            plot_label = f'{data_name} data'
         
         plt.scatter(x_data,y_data, marker='.', s=150, label=plot_label)
         if not errors is None:
             plt.errorbar(x_data,y_data,yerr=errors, fmt='.')
         
-        plt.plot(x,fit_m * x + fit_b, '-', label="y={}x+{}".format(
-            round_sig(fit_m,sig=4),round_sig(fit_b,sig=4)))
+        plt.plot(x,fit_m * x + fit_b, '-', label=f'y={round_sig(fit_m,sig=4)}x+{round_sig(fit_b,sig=4)}')
         if not(xaxis_name is None) and not(yaxis_name is None):
             plt.xlabel(xaxis_name)
             plt.ylabel(yaxis_name)
             plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
-            ncol=2, mode="expand", borderaxespad=0.)
+            ncol=2, mode='expand', borderaxespad=0.)
         plt.show()
     except Exception as e:
         PrintException()
@@ -195,8 +194,7 @@ xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None):
                 out_vec = np.linalg.inv(ATA_mtx) @ A_T_mtx @ weight_data @ b_vec
 
 
-            print("The coefficents for the line of best fit (y=mx+c) are m={}, c={}.".format(
-                round_sig(out_vec[0,0],sig=4),round_sig(out_vec[1,0],sig=4)))
+            print(f'The coefficents for the line of best fit (y=mx+c) are m={round_sig(out_vec[0,0],sig=4)}, c={round_sig(out_vec[1,0],sig=4)}.')
                 
             x_vals = []
             y_vals = []
@@ -212,9 +210,9 @@ xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None):
 
             return([out_vec[0,0],out_vec[1,0]])
         elif not(data_mtx or f_name):
-            raise Exception("No filename or data array passed!") 
+            raise Exception('No filename or data array passed!') 
         else:
-            raise Exception("Idk what happened but it happened...")
+            raise Exception('Idk what happened, but it happened...')
     except Exception as e:
         PrintException()
 
@@ -259,7 +257,7 @@ def covariance(x,y):
     except Exception as e:
         PrintException()
 
-def stats(data, sample=True, output=True):
+def stats(data, sample=True, quiet=False):
     """
     Computes the general statisticts on a set on a 1D set of data. Input: list of numbers
     """
@@ -281,18 +279,17 @@ def stats(data, sample=True, output=True):
         for item in sorted_vec:#count the number of data points outside of one standard deviation of the mean
             if (item < mean - standard_deviation) or (item > mean + standard_deviation):
                 n = n + 1
-        if output:
-            print("The mean is {:.5f}\nThe sample stdev is {:.5f}.".format(mean, standard_deviation))
-            print("The median is {:.2f}\nThe min and max are {:.2f} and {:.2f}.".format(median,minimum,maximum))
-            print("There are {} items ({}%) outside of one standard deviation of the mean.\n".format(
-                n,100*n/len(data_vec)))
+        if not quiet:
+            print(f'The mean is {round_sig(mean,4)}\nThe sample stdev is {round_sig(standard_deviation,4)}.')
+            print(f'The median is {round_sig(median,2)}\nThe min and max are {minimum} and {maximum}.')
+            print(f'There are {n} items ({100*n/len(data_vec)}%) outside of one standard deviation of the mean.\n')
         
         return(minimum, maximum, median, mean, standard_deviation)
 
     except Exception as e:
         PrintException()
 
-def fit_gaussian(data, mean, sd, n_bins=None, bin_width=None):
+def fit_gaussian(data, mean, sd, n_bins=None, bin_width=None, quiet=True):
     '''
     Fits a gaussian to a set of data. input, data, mean, standard deviation, optional number of bins.
 
@@ -300,7 +297,6 @@ def fit_gaussian(data, mean, sd, n_bins=None, bin_width=None):
     https://en.wikipedia.org/wiki/Freedman%E2%80%93Diaconis_rule
     '''
     try:
-        temp = []
         # sanatize input
         if type(data) == np.ndarray:
             data_vec = ndarray_to_list(data)
@@ -309,7 +305,10 @@ def fit_gaussian(data, mean, sd, n_bins=None, bin_width=None):
         sorted_data = sorted(data_vec)
 
         norm_const = float(1/(sd*np.sqrt(2*np.pi)))
-        print('Normalization constant = {}'.format(norm_const))
+        
+        if not quiet:
+            print(f'Normalization constant = {norm_const}')
+
         data_min, data_max, data_len = sorted_data[0], sorted_data[len(sorted_data)-1], len(sorted_data)
 
         x = np.linspace(data_min, data_max, data_len)
@@ -327,7 +326,6 @@ def fit_gaussian(data, mean, sd, n_bins=None, bin_width=None):
         
         data_hist, edges = np.histogram(sorted_data, bins=n_bins)
         hist_amplitude = max(data_hist)
-        new_edges = []
         for i in range(0,len(edges)):
             edges[i] = data_min+i*bin_width
 
@@ -337,14 +335,13 @@ def fit_gaussian(data, mean, sd, n_bins=None, bin_width=None):
         fig, axs = plt.subplots(1,constrained_layout=True)
 
         plt.hist(sorted_data,n_bins,edgecolor='black', linewidth=1.2)
-        plt.plot(x, data, label='Gaussian Fit, $\mu={:.1f},\sigma={:.1f}$'.format(
-            round_sig(mean),round_sig(sd)))
+        plt.plot(x, data, label=f'Gaussian Fit, $\mu={round_sig(mean)},\sigma={round_sig(sd)}$')
         plt.xlabel('Counts')
         plt.ylabel('Frequency')
         plt.xticks(edges,rotation=45)
         plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
-            ncol=2, mode="expand", borderaxespad=0.)
+            ncol=2, mode='expand', borderaxespad=0.)
         plt.show()
-        
+        return(norm_const)
     except Exception as e:
         PrintException()
