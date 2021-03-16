@@ -339,7 +339,7 @@ def covariance(x,y):
 
 def stats(data, sample=True, quiet=False):
     """
-    Computes the general statisticts on a set on a 1D set of data. Input: list of numbers
+    Computes the general statistics on a set on a 1D set of data. Input: list of numbers
     """
     try:
         # initialize needed variables
