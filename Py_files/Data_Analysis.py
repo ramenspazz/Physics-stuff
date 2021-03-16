@@ -140,7 +140,7 @@ def LS_fit(x_data,y_data):
 
     return(xtilde)
 
-def ORD_fit(x_data=None, y_data=None, errors=None, weight_data=None,
+def WLS_fit(x_data=None, y_data=None, errors=None, weight_data=None,
 xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None, quiet=True):
     """Takes a filename string or x and y data as input. We are fitting the equation A_ij*x_j=b_i of the form b=C+Dx.
 
@@ -209,10 +209,90 @@ xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None, 
     except:
         PrintException()
 
+def row_mean(A, row, row_length):
+    temp = 0
+    for i in range(row_length):
+        temp += A[row,i]
+    return(temp/row_length)
+
+def centered_mtx(A):
+    """
+    Returns a matrix where the element in each row is subtracted by its mean of its row.
+    """
+    if A.ndim <= 2:
+        n = np.shape(A)[0]
+        m = np.shape(A)[1]
+        C_mtx = np.zeros((n,m))
+        for i in range(n):
+            mean = row_mean(A,i,m)
+            for j in range(m):
+                C_mtx[i,j] = A[i,j] - mean
+        return(C_mtx)
+
+def cov_mtx(mtx):
+    """
+    Returns the covariance matrix for matrix mtx
+    """
+    n = np.shape(mtx)[1]
+    # create a zero matrix to hold our values
+    covariance_matrix = np.zeros((n,n))
+    # use nlog(n) time to compute the variance of each
+    # entry, noting that the matrix is symmetric so that
+    # A_{i,j} = A_{j,i}
+    for i in range(n):
+        for j in range(i,n):
+            temp = cov(mtx[:,i],mtx[:,j])
+            covariance_matrix[i,j] = temp
+            covariance_matrix[j,i] = temp
+    return covariance_matrix
+
+
 def data_mean(data_vec):
+    """
+    Returns the mean of an data structure itterable by sum()
+    """
     return sum(data_vec) / len(data_vec)
 
+def list_dot(a,b):
+    """
+    Returns the Euclidean inner product of two itterable data-structures.
+    """
+    try:
+        if len(a) == len(b):
+            temp = 0
+            for i in range(len(a)):
+                temp += a[i]*b[i]
+            return(temp)
+        else:
+            raise("ERROR: the length of a and b must be the same!")
+    except Exception as e:
+        print(e)
+
+def cov(a,b, sample=True):
+    """
+    Returns the covariance of two itterable data-structures "a" and "b".\n
+    By default this returns the sample cov, unless sample=False is set.
+    """
+    #compute the expectations of a and b
+    ea = inner_E_vals(a)
+    eb = inner_E_vals(b)
+    #sum the product of each entry and divide by the length
+    if sample:
+        return(list_dot(ea,eb)/(len(a)-1))
+    else:
+        return(list_dot(ea,eb)/len(a))
+
+def inner_E_vals(vec):
+    """
+    Returns a list of the terms in the expectation times without dividing by the length or one minus length.\n
+    This is meant to be used in conjunction with an inner-product of two inner_E_vals() lists to compute variance or covariance.
+    """
+    return list(map(lambda a : a-data_mean(a), vec))
+
 def std_dev(data, mean, sample=True):
+    """
+    Returns the standard deviation of data, sample=True for sample stdev and sample=False for absolute stdev.
+    """
     p_sum = 0
     for item in data:# compute the inner sum of the standard deviation
         p_sum = p_sum + (item - mean)**2
@@ -224,6 +304,9 @@ def std_dev(data, mean, sample=True):
     return(standard_deviation)
 
 def ordinal_stats(sorted_vec):
+    """
+    Returns the minimum, maximum, and median values of a list of real-numbers.
+    """
     try:
         minimum = sorted_vec[0]
         maximum = sorted_vec[len(sorted_vec)-1]
@@ -236,6 +319,10 @@ def ordinal_stats(sorted_vec):
         PrintException()
         
 def covariance(x,y):
+    """
+    I might delete this as it is now redundant, but we shall see.
+    Computes the covariance inputs of x and y, also returning the Pearson r value between x and y. 
+    """
     try:
         cov_xy = 0
         n=0
