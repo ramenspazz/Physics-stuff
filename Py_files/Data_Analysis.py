@@ -39,7 +39,9 @@ def round_sig(x, sig=2):
 
 def ndarray_to_list(data_list):
     array = []
-    if type(data_list) == np.matrix:
+    if type(data_list) == list:
+        return(data_list)
+    elif type(data_list) == np.matrix:
         size = np.shape(data_list)
         for i in range(size[0]):
             for j in range(size[1]):
@@ -85,7 +87,10 @@ def plot_2D_with_fit(x_data, y_data, fit_m, fit_b, num_data, errors=None, xaxis_
         
         plt.scatter(x_data,y_data, marker='.', s=150, label=plot_label)
         if not errors is None:
-            plt.errorbar(x_data,y_data,yerr=errors, fmt='.')
+            (_, caps, _) = plt.errorbar(x_data,y_data,yerr=errors,fmt='.', capsize=5, elinewidth=1, Color='RED')
+            for cap in caps:
+                cap.set_color('RED')
+                cap.set_markeredgewidth(1)
         
         plt.plot(x,fit_m * x + fit_b, '-', label=f'y={round_sig(fit_m,sig=4)}x+({round_sig(fit_b,sig=4)})')
         if not(xaxis_name is None) and not(yaxis_name is None):
@@ -140,8 +145,7 @@ def LS_fit(x_data,y_data):
 
     return(xtilde)
 
-def WLS_fit(x_data=None, y_data=None, errors=None, weight_data=None,
-xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None, quiet=True):
+def WLS_fit(x_data=None, y_data=None, errors=None, weight_data=None,xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None, quiet=True):
     """Takes a filename string or x and y data as input. We are fitting the equation A_ij*x_j=b_i of the form b=C+Dx.
 
     We assume that the data we are being passed is of this form
@@ -159,7 +163,6 @@ xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None, 
                 data_mtx = parse_data_file(f_name, data_lines)
                 A_mtx = np.empty((ln_num,2))
                 b_vec = np.empty((ln_num,1))
-                ATA_mtx = np.empty((2,2))
                 out_vec = np.empty((2,1))
                 # Initialize the data into our matricies
                 for i in range(0,ln_num):
@@ -170,22 +173,24 @@ xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None, 
                 ln_num = len(x_data)
                 A_mtx = np.empty((ln_num,2))
                 b_vec = np.empty((ln_num,1))
-                ATA_mtx = np.empty((2,2))
                 out_vec = np.empty((2,1))
                 for i in range(0,ln_num):
                     A_mtx[i,0] = x_data[i]
                     A_mtx[i,1] = float(1)
                     b_vec[i] = y_data[i]
+            else:
+                raise("ERROR, lengths for x_data and y_data are not equal!")
             
-            A_T_mtx = np.transpose(A_mtx)
-            if weight_data is None:
+            A_T_mtx = A_mtx.T
+            if (weight_data is None):
                 out_vec = np.linalg.inv(A_T_mtx @ A_mtx) @ A_T_mtx @ b_vec
             else:
             # if weight is given compute A^T_W_A
-                out_vec = np.linalg.inv(A_T_mtx @ weight_data @ A_mtx) @ A_T_mtx @ weight_data @ b_vec
+                out_vec = np.linalg.inv(A_T_mtx @ weight_data @ A_mtx)  @ A_T_mtx @ weight_data @ b_vec
+            
+            out_vec = [out_vec[0,0],out_vec[1,0]]
+            fit_string = f'The coefficents for the line of best fit (y=mx+c) are m={round_sig(out_vec[0],sig=4)}, c={round_sig(out_vec[1],sig=4)}.'
 
-            fit_string = f'The coefficents for the line of best fit (y=mx+c) are m={round_sig(out_vec[0,0],sig=4)}, c={round_sig(out_vec[1,0],sig=4)}.'
-                
             if not quiet:
                 print(fit_string)
                 x_vals = []
@@ -197,17 +202,31 @@ xaxis_name=None, yaxis_name=None, f_name=None, data_lines=None, data_name=None, 
                     plot_2D_with_fit(x_vals,y_vals,out_vec[0][0],out_vec[1][0],
                         ln_num, data_name=data_name, errors=errors)
                 else:
-                    plot_2D_with_fit(x_vals,y_vals,out_vec[0][0],out_vec[1][0],
+                    plot_2D_with_fit(x_vals,y_vals,out_vec[0],out_vec[1],
                         ln_num, data_name=data_name, xaxis_name=xaxis_name,yaxis_name=yaxis_name, errors=errors)
-                return([out_vec[0,0],out_vec[1,0]])
-            else:
-                return([out_vec[0,0],out_vec[1,0]], fit_string)
+            return(out_vec, fit_string)
         elif not(data_mtx or f_name):
             raise Exception('No filename or data array passed!') 
         else:
             raise Exception('Idk what happened, but it happened...')
     except:
         PrintException()
+
+def PCA_fit(data_mtx):
+    # calculate the PCA
+    n = np.shape(data_mtx)[0]
+    Xavg = np.mean(data_mtx.T,axis=1)
+    
+    B = centered_mtx(data_mtx.T)
+
+    U, S, VT = np.linalg.svd(B/math.sqrt(n),full_matrices=False)
+
+    px1, py1 = np.array([Xavg[0][0,0], (Xavg[0]+U[0,0]*S[0])[0,0]]), np.array([Xavg[1][0,0], (Xavg[1]+U[1,0]*S[0])[0,0]])
+    px2, py2 = np.array([Xavg[0][0,0], (Xavg[0]+U[0,1]*S[1])[0,0]]), np.array([Xavg[1][0,0], (Xavg[1]+U[1,1]*S[1])[0,0]])
+    slope = (py1[1]+py2[1]-py1[0]-py2[0]) / (px1[1]+px2[1] - px1[0]-px2[0])
+    # slope = (py1[1]-py1[0]) / (px1[1]- px1[0])
+    intercept = py1[0]-slope*px1[0]
+    return([slope, intercept])
 
 def row_mean(A, row, row_length):
     temp = 0
@@ -225,9 +244,41 @@ def centered_mtx(A):
         C_mtx = np.zeros((n,m))
         for i in range(n):
             mean = row_mean(A,i,m)
+            # mean = np.mean(A,axis=i)
             for j in range(m):
                 C_mtx[i,j] = A[i,j] - mean
         return(C_mtx)
+
+def inner_E_vals(vec):
+    """
+    Returns a list of the terms in the expectation times without dividing by the length or one minus length.\n
+    This is meant to be used in conjunction with an inner-product of two inner_E_vals() lists to compute variance or covariance.
+    """
+    out = [None] * len(vec)
+    dm = data_mean(vec)
+    for i, item in enumerate(vec):
+        out[i] = item - dm
+    return(out)
+
+def cov(a,b, sample=True):
+    """
+    Returns the covariance of two itterable data-structures "a" and "b".\n
+    By default this returns the sample cov, unless sample=False is set.
+    """
+    #compute the expectations of a and b
+    if type(a) is np.matrix:
+        ea = a.tolist()[0]
+        eb = b.tolist()[0]
+        ea = inner_E_vals(ea)
+        eb = inner_E_vals(eb)
+    else:
+        ea = inner_E_vals(a)
+        eb = inner_E_vals(b)
+    #sum the product of each entry and divide by the length
+    if sample:
+        return(list_dot(ea,eb)/(len(ea)-1))
+    else:
+        return(list_dot(ea,eb)/len(ea))
 
 def cov_mtx(mtx):
     """
@@ -235,13 +286,13 @@ def cov_mtx(mtx):
     """
     n = np.shape(mtx)[1]
     # create a zero matrix to hold our values
-    covariance_matrix = np.zeros((n,n))
+    covariance_matrix = np.empty((n,n))
     # use nlog(n) time to compute the variance of each
     # entry, noting that the matrix is symmetric so that
     # A_{i,j} = A_{j,i}
     for i in range(n):
         for j in range(i,n):
-            temp = cov(mtx[:,i],mtx[:,j])
+            temp = cov(mtx[:,i].T,mtx[:,j].T)
             covariance_matrix[i,j] = temp
             covariance_matrix[j,i] = temp
     return covariance_matrix
@@ -267,27 +318,6 @@ def list_dot(a,b):
             raise("ERROR: the length of a and b must be the same!")
     except Exception as e:
         print(e)
-
-def cov(a,b, sample=True):
-    """
-    Returns the covariance of two itterable data-structures "a" and "b".\n
-    By default this returns the sample cov, unless sample=False is set.
-    """
-    #compute the expectations of a and b
-    ea = inner_E_vals(a)
-    eb = inner_E_vals(b)
-    #sum the product of each entry and divide by the length
-    if sample:
-        return(list_dot(ea,eb)/(len(a)-1))
-    else:
-        return(list_dot(ea,eb)/len(a))
-
-def inner_E_vals(vec):
-    """
-    Returns a list of the terms in the expectation times without dividing by the length or one minus length.\n
-    This is meant to be used in conjunction with an inner-product of two inner_E_vals() lists to compute variance or covariance.
-    """
-    return list(map(lambda a : a-data_mean(a), vec))
 
 def std_dev(data, mean, sample=True):
     """
@@ -369,7 +399,7 @@ def stats(data, sample=True, quiet=False):
     except:
         PrintException()
 
-def fit_gaussian(data, mean, sd, n_bins=None, bin_width=None, quiet=True):
+def fit_gaussian(data, mean, sd, n_bins=None, bin_width=None, condense=False, quiet=True):
     '''
     Fits a gaussian to a set of data. input, data, mean, standard deviation, optional number of bins.
 
@@ -378,11 +408,7 @@ def fit_gaussian(data, mean, sd, n_bins=None, bin_width=None, quiet=True):
     '''
     try:
         # sanatize input
-        if type(data) == np.ndarray:
-            data_vec = ndarray_to_list(data)
-        elif type(data) == list:
-            data_vec = data
-        sorted_data = sorted(data_vec)
+        sorted_data = sorted(ndarray_to_list(data))
 
         norm_const = float(1/(sd*np.sqrt(2*np.pi)))
         
@@ -404,18 +430,23 @@ def fit_gaussian(data, mean, sd, n_bins=None, bin_width=None, quiet=True):
         elif bin_width:
             n_bins = math.floor((data_max-data_min)/bin_width)
         
-        data_hist, edges = np.histogram(sorted_data, bins=n_bins)
+        data_hist, temp_edge = np.histogram(sorted_data, bins=n_bins)
         hist_amplitude = max(data_hist)
-        for i in range(0,len(edges)):
-            edges[i] = data_min+i*bin_width
+        edges = []
 
+        if condense:
+            for i, item in enumerate(temp_edge):
+                if i%2==0:
+                    edges.append(item)
+        else:
+            edges = temp_edge
         m = modeling.models.Gaussian1D(amplitude=hist_amplitude, mean=mean, stddev=sd)
         data = m(x)
 
         fig, axs = plt.subplots(1,constrained_layout=True)
 
         plt.hist(sorted_data,n_bins,edgecolor='black', linewidth=1.2)
-        plt.plot(x, data, label=f'Gaussian Fit, $\mu={round_sig(mean)},\sigma={round_sig(sd)}$')
+        plt.plot(x, data, label=f'Gaussian Fit, $\mu={round_sig(mean,3)},\sigma={round_sig(sd,3)}$')
         plt.xlabel('Counts')
         plt.ylabel('Frequency')
         plt.xticks(edges,rotation=45)
