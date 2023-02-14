@@ -4,6 +4,7 @@ from __future__ import division
 import matplotlib.pyplot as plt
 from datetime import datetime
 # import nDim_Symbolic_Function
+import numpy as np
 import torch
 import linecache
 import sys
@@ -27,6 +28,7 @@ class Integrator:
     cromer, or the Euler method.
     '''
     def __init__(self,
+                 dim,
                  eval_func,
                  start_val,
                  end_val,
@@ -38,6 +40,10 @@ class Integrator:
         '''
         # Parameters
         ------------
+        dim : `int`
+            - The dimention of the expression. IE: f(x) is 1d, f(x,y,z) is 3d,
+            so on and so forth.
+
         eval_func : `sympy.Function`
             - The nDim_Symbolic_Function to be evaluated.
 
@@ -63,6 +69,7 @@ class Integrator:
             else `None`.
         '''
         try:
+            self.dim = dim
             self.eval_func = eval_func
             self.virtual_range_size = end_val - start_val
             self.dt = dt
@@ -78,6 +85,8 @@ class Integrator:
             # there is no real reason in my opinion
             self.sim_time = int(self.virtual_range_size/self.dt)
             self.diff_list = self.eval_func.contains_derivative()
+            self.start_val = start_val
+            self.end_val = end_val
 
             if self.sim_time % self.output_step != 0:
                 self.sim_time = self.sim_time - (
@@ -143,21 +152,46 @@ class Integrator:
     def sim_and_plot(self, function_select):
         try:
             if isinstance(function_select, int):
-                fig, ax = plt.subplots(
-                    1, 2, constrained_layout=True,
-                    subplot_kw={"projection": "3d"})
-
                 if int(function_select) == 1:
-                    plot_vals = self.Euler(check_val=True)
+                    plot_vals = self.Euler(check_val=True).numpy()
                 elif int(function_select) == 2:
-                    plot_vals = self.Euler_Cromer(check_val=True)
+                    plot_vals = self.Euler_Cromer(check_val=True).numpy()
                 elif int(function_select) == 3:
-                    plot_vals = self.RK4(check_val=True)
+                    plot_vals = self.RK4(check_val=True).numpy()
+
+                if self.dim == 1:
+                    ind_vals = np.arange(self.start_val,
+                                         self.end_val,
+                                         self.output_step)
+                    plt.plot(ind_vals, plot_vals[:, 0])
+
+                elif self.dim == 2:
+                    # I might need to switch the order of x and y
+                    plt.plot(plot_vals[0, :], plot_vals[:, 0])
+
+                elif self.dim == 3:
+                    fig, ax = plt.subplots(
+                        1,
+                        2,
+                        constrained_layout=True,
+                        subplot_kw={"projection": "3d"})
+                    ax.plot3D(
+                        plot_vals[:, 0],
+                        plot_vals[:, 1],
+                        plot_vals[:, 2],
+                        'green')
+
+                else:
+                    # throw a ValueError, dim is incorrect
+                    raise ValueError(
+                        f"""dim is not of the right size! Must be 1, 2, or 3.
+                        Got {self.dim}"""
+                    )
 
                 print(f"plot_vals is {plot_vals}")
-                ax.plot3D(plot_vals[:, 0], plot_vals[:, 1], plot_vals[:, 2],
-                          'green')
+
                 plt.show()
+
                 del plot_vals
 
         except Exception as e:
@@ -169,6 +203,10 @@ class Integrator:
         sys.stdout.write('Done!\n')
 
     def collect_args(self):
+        '''
+        TODO : Write a docstring because even I forgot what the purpose of
+        this function was...
+        '''
         try:
             var_dim_diff_size = (self.eval_func.get_all_var() -
                                  self.eval_func.get_dim())
