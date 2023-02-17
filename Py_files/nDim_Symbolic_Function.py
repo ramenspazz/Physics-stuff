@@ -7,6 +7,7 @@ import linecache
 import sys
 import torch
 from threading import Thread
+import math
 
 
 def PrintException():
@@ -42,7 +43,7 @@ class nDim_Symbolic_Function:
 
         all_vars : `list`[`sym`.`Function`]
             - A list of all variables present in `expr`.
-            
+
         variable_list : `list`[`sym`.`Function`]
             - A list of the variables in each entry in `expr`. IE:
              `f(x,y,dxdt,t) = [dxdt/x+y, y*t]` would give a variable list equal
@@ -70,13 +71,22 @@ class nDim_Symbolic_Function:
 
             # assign an empty set toeach function output, this is kept as an
             # empty set so
-            self.results = [{} for x in self.in_args]
             # that tensors of rank 2 or more can be evaluated at a later
             # version of this module
+            self.results = [{} for x in self.in_args]
 
             # set the variable as a key into a dictionary with an initial
             # value of 0.
             self.vars = {variable: 0 for variable in all_vars}
+
+            self.zeroth_order_terms_list = self.contains_zeroth_order()
+            self.time_dep = False
+            self.contains_time_dependance()
+            self.nth_order_terms_list = self.contains_derivative()
+
+            self.tRP_tensor: list[float | int] = [0 for i in range(len(self.variable_list))]  # noqa
+
+            print(f"self.pos_vel_tensor is {self.tRP_tensor}")
             # link each variable to a enumeratable key value instead of the
             # name
             self.var_dict = {i: self.variable_list[i] for i in range(self.dim)}
@@ -98,7 +108,17 @@ class nDim_Symbolic_Function:
         sys.stdout.write('TODO : cleanup...\n')
         return
 
-    def contains_derivative(self):
+    def contains_zeroth_order(self) -> list:
+        pos_list = []
+        for i, var in enumerate(self.vars):
+            # atoms can check for sympy types in expression, here we check for
+            # 1st order and higher terms
+            if var.atoms(sym.Symbol) != set():
+                if len(var.atoms(sym.Derivative)) == 0:
+                    pos_list.append((i, var))
+        return pos_list
+
+    def contains_derivative(self) -> list:
         diff_list = []
         for i, var in enumerate(self.vars):
             # atoms can check for sympy types in expression, here we check for
@@ -107,10 +127,17 @@ class nDim_Symbolic_Function:
                 diff_list.append((i, var))
         return diff_list
 
+    def contains_time_dependance(self):
+        for item in self.variable_list:
+            for asdf in item:
+                print(f"item is {asdf}, type is {type(asdf)}")
+                if type(asdf) is sym.core.symbol.Symbol:
+                    self.time_dep = True
+
     def __eval_func(self, key, res):
 
         # for var in self.variable_list[key]:
-            # print(f"var {var} is {self.vars[var]}")
+        #     print(f"var {var} is {self.vars[var]}")
         a = (eval(self.lambda_expr[key])(*[self.vars[var] for var in
              self.variable_list[key]]))
         res[key] = a
@@ -142,7 +169,7 @@ class nDim_Symbolic_Function:
 
             del threadpool
 
-            output = torch.tensor(self.results)
+            output = torch.tensor(self.results, dtype=float)
 
             for dict_key in self.vars:
                 self.vars[dict_key] = 0
