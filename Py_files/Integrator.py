@@ -7,6 +7,8 @@ from datetime import datetime
 import numpy as np
 import torch
 import linecache
+import nDim_Symbolic_Function
+import sympy as sym
 import sys
 
 
@@ -28,13 +30,13 @@ class Integrator:
     cromer, or the Euler method.
     '''
     def __init__(self,
-                 dim,
-                 eval_func,
-                 start_val,
-                 end_val,
-                 step,
-                 dt,
-                 *args,
+                 dim: int,
+                 eval_func: nDim_Symbolic_Function.nDim_Symbolic_Function,
+                 start_val: float | int,
+                 end_val: float | int,
+                 step: float | int,
+                 dt: float | int,
+                 *args: float | int,
                  mult=None):
 # TODO turn the start and end val into a single tuple  # noqa
         '''
@@ -71,47 +73,44 @@ class Integrator:
         try:
             self.dim = dim
             self.eval_func = eval_func
+            self.start_val = start_val
+            self.end_val = end_val
             self.virtual_range_size = end_val - start_val
             self.dt = dt
+            print(f"virtual range size is: {self.virtual_range_size}")
+            print(f"dt is: {self.dt}")
             # this is the simulation output step, IE: the simulation runs in
             # 0.25s steps, but the actual data that is retained is at most the
             # nDim*sizeof(float_64)*output_step, this is for larger simulations
             # where memory constraints are a real issue to keep in mind.
             self.output_step = step
+            print(f"output step is: {self.output_step}")
             self.trim_ = False
 
             # as long as dt is smaller than the cardinality of the range there
             # should be no erros here. I thought of making this an assert but
             # there is no real reason in my opinion
             self.sim_time = int(self.virtual_range_size/self.dt)
-            self.diff_list = self.eval_func.contains_derivative()
-            self.start_val = start_val
-            self.end_val = end_val
 
             if self.sim_time % self.output_step != 0:
-                self.sim_time = self.sim_time - (
-                                self.sim_time % self.output_step)
-                self.sub_time = int(self.sim_time/self.output_step)
+                self.sim_time = int(self.sim_time - (
+                                self.sim_time % self.output_step)) + 1
+                self.sub_time = int(self.sim_time * self.dt / self.output_step)
+                # print(f'the output step size is with trim {self.sub_time}')
                 self.trim_ = True
-                print(f'the output step size is with trim {self.sub_time}')
 
             else:
                 self.sub_time = int(self.output_step/self.dt)
-                print(f'the output step size is {self.sub_time}')
+                # print(f'the output step size is {self.sub_time}')
+            print(f"self.sim_time value and type are: {self.sim_time}, {type(self.sim_time)}")  # noqa
+            print(f'the output step size is: {self.sub_time}')
+            # print(f"sim / sub = {self.sim_time/self.sub_time}")
 
-            if mult is None:
-                self.scale_factor = int(1)
-            else:
-                self.scale_factor = mult
-            self.out_list = torch.zeros((int(self.sim_time/self.sub_time),
-                                         self.eval_func.get_dim()))
-
-            self.y_0 = torch.zeros(eval_func.get_dim())
-            self.y_1 = torch.zeros(eval_func.get_dim())
-            self.dy_0 = torch.zeros(eval_func.get_dim())
-            self.dy_1 = torch.zeros(eval_func.get_dim())
-
-            self.force_input = torch.zeros(eval_func.get_dim())
+            self.y_0 = torch.zeros(eval_func.get_dim(), dtype=float)
+            self.y_1 = torch.zeros(eval_func.get_dim(), dtype=float)
+            self.dy_0 = torch.zeros(eval_func.get_dim(), dtype=float)
+            self.dy_1 = torch.zeros(eval_func.get_dim(), dtype=float)
+            self.cur_real_time = 0.0
 
             # The length of the args should be twice the number of variables
             for i, val in enumerate(args):
@@ -121,8 +120,6 @@ class Integrator:
                 else:
                     self.y_0[i] = val
 
-            self.out_list[0, :] = torch.mul(self. scale_factor, self.y_0)
-
             self.y_1 = self.y_0[:]
             self.dy_1 = self.dy_0[:]
 
@@ -131,96 +128,97 @@ class Integrator:
         except Exception as e:  # noqa
             PrintException()
 
-    # def cleanup(self):
-    #     sys.stdout.write('cleaning...\n')
-    #     del self.y_0
-    #     del self.y_1
-    #     del self.dy_0
-    #     del self.dy_1
-    #     del self.sub_time
-    #     del self.sim_time
-    #     del self.dt
-    #     del self.diff_list
-    #     del self.scale_factor
-    #     del self.output_step
-    #     del self.virtual_range_size
-    #     del self.force_input
-    #     del self.trim_
-    #     sys.stdout.write('Done!\n')
-    #     return
 
-    def sim_and_plot(self, function_select):
+    def sim_and_plot(self, function_select) -> np.ndarray:
         try:
             if isinstance(function_select, int):
                 if int(function_select) == 1:
-                    plot_vals = self.Euler(check_val=True).numpy()
+                    plot_vals: np.ndarray = self.Euler(check_val=True)
                 elif int(function_select) == 2:
-                    plot_vals = self.Euler_Cromer(check_val=True).numpy()
+                    plot_vals: np.ndarray = self.Euler_Cromer(check_val=True)
                 elif int(function_select) == 3:
-                    plot_vals = self.RK4(check_val=True).numpy()
+                    plot_vals: np.ndarray = self.RK4(check_val=True)
 
-                if self.dim == 1:
-                    ind_vals = np.arange(self.start_val,
-                                         self.end_val,
-                                         self.output_step)
-                    plt.plot(ind_vals, plot_vals[:, 0])
+                # if self.dim == 1:
+                #     ind_vals: np.ndarray = np.zeros(plot_vals.shape)
+                #     for i in range(len(ind_vals)):
+                #         ind_vals[i] = self.start_val + i * self.output_step
+                #     # print(ind_vals)
+                #     print(f"ind_vals size is = {len(ind_vals)}, plot_vals size is = {len(plot_vals)}")  # noqa
+                #     plt.plot(ind_vals, plot_vals[:, 0])
 
-                elif self.dim == 2:
-                    # I might need to switch the order of x and y
-                    plt.plot(plot_vals[0, :], plot_vals[:, 0])
+                # elif self.dim == 2:
+                #     # I might need to switch the order of x and y
+                #     plt.plot(plot_vals[0, :], plot_vals[:, 0])
 
-                elif self.dim == 3:
-                    fig, ax = plt.subplots(
-                        1,
-                        2,
-                        constrained_layout=True,
-                        subplot_kw={"projection": "3d"})
-                    ax.plot3D(
-                        plot_vals[:, 0],
-                        plot_vals[:, 1],
-                        plot_vals[:, 2],
-                        'green')
+                # elif self.dim == 3:
+                #     fig, ax = plt.subplots(
+                #         1,
+                #         2,
+                #         constrained_layout=True,
+                #         subplot_kw={"projection": "3d"})
+                #     ax.plot3D(
+                #         plot_vals[:, 0],
+                #         plot_vals[:, 1],
+                #         plot_vals[:, 2],
+                #         'green')
 
-                else:
-                    # throw a ValueError, dim is incorrect
-                    raise ValueError(
-                        f"""dim is not of the right size! Must be 1, 2, or 3.
-                        Got {self.dim}"""
-                    )
+                # else:
+                #     # throw a ValueError, dim is incorrect
+                #     raise ValueError(
+                #         f"""dim is not of the right size! Must be 1, 2, or 3.
+                #         Got {self.dim}"""
+                #     )
 
-                print(f"plot_vals is {plot_vals}")
-
-                plt.show()
-
-                del plot_vals
+                return plot_vals
 
         except Exception as e:
             print(e)
 
     def __del__(self):
-        sys.stdout.write('cleaning...\n')
         del self
-        sys.stdout.write('Done!\n')
 
-    def collect_args(self):
+    def update_position(self, new_pos: torch.Tensor) -> None:
+        self.y_1.data = new_pos.data
+
+    def update_args(self,
+                    t: float,
+                    r: torch.Tensor,
+                    drdt: torch.Tensor):
         '''
-        TODO : Write a docstring because even I forgot what the purpose of
-        this function was...
+        Updates the tRP_tensor with the passed values of t, r and drdt.
+
+        # Parameters
+        ------------
+        t : `float`
+            - Time
+
+        r: `torch`.`Tensor`
+            - Position
+
+        drdt : `torch`.`Tensor`
+            - Velocity
         '''
         try:
-            var_dim_diff_size = (self.eval_func.get_all_var() -
-                                 self.eval_func.get_dim())
-            for i in range(var_dim_diff_size):
-                self.force_input[i] = self.y_0[i]
-            for item in self.diff_list:
-                index = item[0] - var_dim_diff_size
-                self.force_input[index] = self.dy_0[index]
+            if (len(self.eval_func.zeroth_order_terms_list) > 0 and
+                    len(self.eval_func.nth_order_terms_list) == 0):
+                self.eval_func.tRP_tensor = r.tolist()
+            elif (len(self.eval_func.zeroth_order_terms_list) == 0 and
+                    len(self.eval_func.nth_order_terms_list) > 0):
+                self.eval_func.tRP_tensor = drdt.tolist()
+            else:
+                for i, item in enumerate(r.tolist()):
+                    self.eval_func.tRP_tensor = [*r.tolist(), *drdt.tolist()]  # noqa
+
+            if self.eval_func.time_dep is True:
+                self.eval_func.tRP_tensor = [t] + self.eval_func.tRP_tensor
+
         except Exception as e:  # noqa
             print("Error in collect_args method!")
             PrintException()
             sys.exit()
 
-    def Euler(self, check_val=None):
+    def Euler(self, check_val=None) -> torch.Tensor:
         '''
         Evaluates the Euler method for an n-dimensional eval_func.
         Arguments : vector function to evaluate, independant variable start
@@ -230,45 +228,56 @@ class Integrator:
         '''
         try:
             # begin computing Euler
-            count = 0
+            self.update_args(self.start_val, self.y_0, self.dy_0)
+            y_0 = self.y_0.data
+            y_1 = torch.zeros(self.eval_func.get_dim(), dtype=float)
+            dy_0 = self.dy_0.data
+            dy_1 = torch.zeros(self.eval_func.get_dim(), dtype=float)
+
+            out_list = []
+            out_list.append(self.y_1.tolist()[0])
+            last_output_time: float = 0.0
+            print(f"initial conditions: r = {self.y_0}, drdt={self.dy_0}\n")
             print("Euler method...")
+            print('\rStarting...')  # noqa
             start = datetime.now()
-            for itt in range(self.sim_time - 1):
-                # calculate new position from velocity
-                self.y_1 = self.y_1 + torch.mul(self.dt, self.dy_1)
-                # This branch collects the force specific inputs if
-                # Derivatives exist in the function
-                if self.diff_list != []:
-                    self.collect_args()
-                    # calculate new velocity from acceleration
-                    self.dy_1 = self.dy_0 + torch.mul(
-                        self.dt, self.eval_func.evaluate(*self.force_input))
-                else:
-                    # calculate new velocity from acceleration
-                    self.dy_1 = self.dy_0 + torch.mul(
-                        self.dt, self.eval_func.evaluate(*self.y_1))
-                # update the temporary variable
-                self.dy_0 = self.dy_1
-                if itt % self.sub_time == 0 and itt != 0:
+            print(f"iteration number = {self.sim_time}\n")
+            for i, itt in enumerate(range(self.sim_time)):
+                # if t is needed, it is calculated here
+                cur_real_time = self.start_val + itt * self.dt
+
+                # calculate new velocity from acceleration
+                dy_1.data = dy_0.data + self.dt * self.eval_func.evaluate(*self.eval_func.tRP_tensor).data  # noqa
+
+                # calculate new position from new velocity
+                y_1.data = y_0.data + torch.mul(self.dt, dy_1.data).data
+
+                # update variables this iterations initial and final values
+                # for the next iteration
+                y_0.data = y_1.data
+                dy_0.data = dy_1.data
+                self.update_args(cur_real_time, y_1, dy_1)
+
+                if cur_real_time - last_output_time >= self.output_step:
+                    # this block is option status output with ETA if check_val
+                    # is passed as True to the functuion
                     if check_val:
-                        ratio = itt/self.sim_time
+                        ratio = i / self.sim_time
                         cur_time = datetime.now() - start
                         ETA = cur_time.seconds / ratio
-                        print('\rCurrently {:.2f}%. Running for {} seconds : E.T.A {:.2f} Seconds. T - done = {:.2f}'.format(100*ratio, cur_time, ETA, ETA-cur_time.seconds), end='')  # noqa
-                    self.out_list[count+1, :] = torch.mul(self.scale_factor,
-                                                          self.y_1)
-                    count = count + 1
+                        print('\rCurrently {:.2f}%. Running for {} seconds : E.T.A {:.2f} Seconds. T - done = {:.2f}'.format(100 * ratio, cur_time, ETA, ETA - cur_time.seconds), end='')  # noqa
+
+                    # put the final result for this iteration at the next
+                    # starting conditions place at count+1 in the output list.
+                    # print(self.y_1)
+                    out_list.append(y_1.tolist()[0])
+                    last_output_time = cur_real_time
+
             print('\rCompleted in {}!'.format(datetime.now()-start))
-            # end loop
-            # self.out_list[self.output_step - 1,:] = torch.mul(
-            # self.scale_factor,self.y_1) # I keep getting weird issues with
-            # this line so I commented it
-            # out, but in theory it should pose no problems... except for the
-            # part where it does
-            return self.out_list
+            return np.array(out_list)
 
         except Exception as e:  # noqa
-            print("Error in Euler_Cromer method!")
+            print("Error in Euler method!")
             PrintException()
 
     def Euler_Cromer(self, check_val=None):
@@ -281,153 +290,167 @@ class Integrator:
         '''
         try:
             # begin computing Euler-Cromer
-            count = 0
+            self.update_args(self.start_val, self.y_0, self.dy_0)
+            y_0 = self.y_0.data
+            y_1 = torch.zeros(self.eval_func.get_dim(), dtype=float)
+            dy_0 = self.dy_0.data
+            dy_1 = torch.zeros(self.eval_func.get_dim(), dtype=float)
+
+            out_list = []
+            out_list.append(self.y_1.tolist()[0])
+            last_output_time: float = 0.0
+            print(f"initial conditions: r = {self.y_0}, drdt={self.dy_0}\n")
             print("Euler-Cromer method...")
-
-            var_temp = self.eval_func.get_all_var_as_list()
-            self.collect_args(var_temp)
-
             start = datetime.now()
-            # output itteration counter
-            sub_itt = 0
-            for itt in range(self.sim_time - 1):
-                # This branch collects the force specific inputs if
-                # Derivatives exist in the function
-                if self.diff_list != []:
-                    self.collect_args()
-                    # calculate new velocity from acceleration
+            for i, itt in enumerate(range(self.sim_time)):
+                # if t is needed, it is calculated here
+                cur_real_time = self.start_val + itt * self.dt
 
-                    self.dy_1 = (self.dy_1 +
-                                 torch.mul(self.dt, self.eval_func.evaluate(
-                                    *self.force_input)))
-                # calculate velocity from the acceleration given only 0th
-                # order conditions (ideal case for runtime speed)
-                else:
-                    # calculate new velocity from acceleration
-                    self.dy_1 = (self.dy_1 +
-                                 torch.mul(self.dt, self.eval_func.evaluate(
-                                    *self.y_1)))
+                # Calclate velocity from force
+                dy_1.data = dy_0.data + torch.mul(self.dt, self.eval_func.evaluate(*self.eval_func.tRP_tensor)).data  # noqa
+
                 # calculate new position from velocity
-                self.y_1 = (self.y_1 +
-                            torch.mul(self.dt, self.dy_1))
-                if sub_itt == self.sub_time and itt != 0:
-                    # print('hit')
+                # temp = self.y_1.tolist()[0] + self.dt * self.dy_1.tolist()[0]
+                y_1.data = y_0.data + self.dt * dy_1.data
+
+                # update variables this iterations initial and final values
+                # for the next iteration
+                y_0.data = y_1.data
+                dy_0.data = dy_1.data
+                self.update_args(cur_real_time, y_1, dy_1)
+
+                if cur_real_time - last_output_time >= self.output_step:
+                    # this block is option status output with ETA if check_val
+                    # is passed as True to the functuion
                     if check_val:
-                        ratio = itt/self.sim_time
+                        ratio = i / self.sim_time
                         cur_time = datetime.now() - start
                         ETA = cur_time.seconds / ratio
-                        print('\rCurrently {:.2f}%. Running for {} seconds : E.T.A {:.2f} Seconds. T - done = {:.2f}'.format(100*ratio,cur_time,ETA,ETA-cur_time.seconds),end='')  # noqa
-                    self.out_list[count+1, :] = torch.mul(self.scale_factor,
-                                                          self.y_1)
-                    count += 1
-                    sub_itt = 0  # reset the output counter
-                    continue
-                sub_itt += 1
+                        print('\rCurrently {:.2f}%. Running for {} seconds : E.T.A {:.2f} Seconds. T - done = {:.2f}'.format(100 * ratio, cur_time, ETA, ETA - cur_time.seconds), end='')  # noqa
+
+                    # put the final result for this iteration at the next
+                    # starting conditions place at count+1 in the output list.
+                    # print(self.y_1)
+                    out_list.append(y_1.tolist()[0])
+                    last_output_time = cur_real_time
+
             print('\rCompleted in {}!'.format(datetime.now()-start))
-            # end loop
-            # self.out_list[int(self.output_step) - 1,:] = torch.mul(self.scale_factor,self.y_1) # I keep getting weird issues with this line so I commented it  # noqa
-            # out, but in theory it should pose no problems... except for the part where it does  # noqa
-            return self.out_list
+            print(out_list)
+            return np.array(out_list)
+
         except Exception as e:  # noqa
             print("Error in Euler_Cromer method!")
             PrintException()
 
-    def RK4(self, check_val=None):
+    def RK4(self, check_val=None) -> np.ndarray:
         '''
-        Evaluates the Runge-Kutta-4 method for an n-dimensional self.eval_func.
-        Arguments : vector function to evaluate, independant variable start
-        point, independant variable end point, independant variable step size,
-        initial conditions. if check_val = True **kwarg passed, enable verbose
+        # Description
+        -------------
+
+        Evaluates the Runge-Kutta-4 method for an ode represented by `sympy`
+        functions and the class `nDim_Symbolic_Function`. Uses `pytorch` to
+        enable computational paralelism for computing multiple dimentions of a
+        problem at once.
+
+        # Arguments
+        -----------
+
+        check_val : `None` | `bool`
+            - Optional argument that enables console based text output for the
+            simulation.
         loop information
         '''
         try:
             # setup initial conditions for the k and l variables that fit to
             # RK4
-            k1 = torch.zeros(self.eval_func.get_all_var())
-            k2 = torch.zeros(self.eval_func.get_all_var())
-            k3 = torch.zeros(self.eval_func.get_all_var())
-            k4 = torch.zeros(self.eval_func.get_all_var())
+            k1: torch.Tensor = torch.zeros(self.eval_func.dim, dtype=float)
+            k2: torch.Tensor = torch.zeros(self.eval_func.dim, dtype=float)
+            k3: torch.Tensor = torch.zeros(self.eval_func.dim, dtype=float)
+            k4: torch.Tensor = torch.zeros(self.eval_func.dim, dtype=float)
 
-            l1 = torch.zeros(self.eval_func.get_all_var())
-            l2 = torch.zeros(self.eval_func.get_all_var())
-            l3 = torch.zeros(self.eval_func.get_all_var())
-            l4 = torch.zeros(self.eval_func.get_all_var())
-            count = 0
+            l1: torch.Tensor = torch.zeros(self.eval_func.dim, dtype=float)
+            l2: torch.Tensor = torch.zeros(self.eval_func.dim, dtype=float)
+            l3: torch.Tensor = torch.zeros(self.eval_func.dim, dtype=float)
+            l4: torch.Tensor = torch.zeros(self.eval_func.dim, dtype=float)
+
+            self.update_args(self.start_val, self.y_0, self.dy_0)
+            y_0: torch.Tensor = self.y_0
+            y_1: torch.Tensor = torch.zeros(self.eval_func.get_dim(), dtype=float)
+            dy_0: torch.Tensor = self.dy_0
+            dy_1: torch.Tensor = torch.zeros(self.eval_func.get_dim(), dtype=float)
+
+            out_list = []
+            out_list.append(self.y_1.tolist()[0])
+            last_output_time: float = 0.0
+            print(f"initial conditions: r = {self.y_0}, drdt={self.dy_0}\n")
             print("Runge Kutta 4 method...")
             start = datetime.now()
             # begin computing RK4
-            for itt in range(self.sim_time-1):
-                # TODO fix dependance on k1-n,l1-n
-                if self.diff_list != []:  # This branch collects the force 
-                    # specific inputs if Derivatives exist in the function
-                    self.collect_args()
-                    k1 = self.force_input
-                    l1 = self.eval_func.evaluate(*self.force_input)
-                else:
-                    k1 = self.dy_0
-                    l1 = self.eval_func.evaluate(*self.y_0)
+            for i, itt in enumerate(range(self.sim_time)):
+                cur_real_time = self.start_val + itt * self.dt
 
-                self.y_1 = self.y_0 + torch.mul(0.5*self.dt, k1)
-                self.dy_1 = self.dy_0 + torch.mul(0.5*self.dt, l1)
-                # This branch collects the force specific inputs if
-                # Derivatives exist in the function
-                if self.diff_list != []:
-                    # self.collect_args()
-                    k2 = self.force_input
-                    l2 = self.eval_func.evaluate(*self.force_input)
-                else:
-                    k2 = self.dy_1
-                    l2 = self.eval_func.evaluate(*self.y_1)
-                self.y_1 = self.y_0 + torch.mul(0.5*self.dt, k2)
-                self.dy_1 = self.dy_0 + torch.mul(0.5*self.dt, l2)
-                # This branch collects the force specific inputs if
-                # Derivatives exist in the function
-                if self.diff_list != []:
-                    # self.collect_args()
-                    k3 = self.force_input
-                    l3 = self.eval_func.evaluate(*self.force_input)
-                else:
-                    k3 = self.dy_1
-                    l3 = self.eval_func.evaluate(*self.y_1)
-                self.y_1 = self.y_0 + torch.mul(self.dt, k3)
-                self.dy_1 = self.dy_0 + torch.mul(self.dt, l3)
-                # This branch collects the force specific inputs if
-                # Derivatives exist in the function
-                if self.diff_list != []:
-                    # self.collect_args()
-                    k4 = self.force_input
-                    l4 = self.eval_func.evaluate(*self.force_input)
-                else:
-                    k4 = self.dy_1
-                    l4 = self.eval_func.evaluate(*self.y_1)
+                # k1 = h * f(tn, yn, zn)
+                k1 = self.dt * self.eval_func.evaluate(*self.eval_func.tRP_tensor)
+                # l1 = h * zn
+                l1 = self.dt * dy_0
+                # update the args
+                self.update_args(cur_real_time + self.dt / 2,
+                                 y_0 + k1 / 2,
+                                 dy_0 + l1 / 2)
+
+                # k2 = h * f(tn + h/2, yn + k1/2, zn + l1/2)
+                k2 = self.dt * self.eval_func.evaluate(*self.eval_func.tRP_tensor)
+                # l2 = h * (zn + l1/2)
+                l2 = self.dt * (dy_0 + l1 / 2)
+                # update the args
+                self.update_args(cur_real_time + self.dt / 2,
+                                 y_0 + k2 / 2,
+                                 dy_0 + l2 / 2)
+
+                # k3 = h * f(tn + h/2, yn + k2/2, zn + l2/2)
+                k3 = self.dt * self.eval_func.evaluate(*self.eval_func.tRP_tensor)
+                # l3 = h * (zn + l2/2)
+                l3 = self.dt * (dy_0 + l2 / 2)
+                # update the args
+                self.update_args(cur_real_time + self.dt,
+                                 y_0 + k3,
+                                 dy_0 + l3)
+
+                # k4 = h * f(tn + h, yn + k3, zn + l3)
+                k4 = self.dt * self.eval_func.evaluate(*self.eval_func.tRP_tensor)
+                # l4 = h * (zn + l3)
+                l4 = self.dt * (dy_0 + l3)
 
                 # estimate of r
-                temp_out1 = torch.mul(self.dt/6, (k1 + torch.mul(2, k2) +
-                                                  torch.mul(2, k3) + k4))
-                # estimate of dvdt
-                temp_out2 = torch.mul(self.dt/6, (l1 + torch.mul(2, l2) +
-                                                  torch.mul(2, l3) + l4))
+                # yn+1 = yn + (k1 + 2k2 + 2k3 + k4)/6
+                y_1 = y_0 + (k1 + 2 * k2 + 2*k3 + k4) / 6
+                # estimate of drdt
+                # zn+1 = zn + (l1 + 2l2 + 2l3 + l4)/6
+                dy_1 = dy_0 + (l1 + 2 * l2 + 2 * l3 + l4) / 6
+                # print(y_0, temp, y_0 + temp)
 
-                # below we compute the final averaged velocity and position
-                # and update temporary variables
-                self.y_1 = self.y_0 + temp_out1
-                self.y_0 = self.y_1
-                self.dy_1 = self.dy_0 + temp_out2
-                self.dy_0 = self.dy_1
-                if itt % self.sub_time == 0 and itt != 0:
+                y_0 = y_1
+                dy_0 = dy_1
+
+                self.update_args(cur_real_time, y_1, dy_1)
+
+                if cur_real_time - last_output_time >= self.output_step:
+                    # this block is option status output with ETA if check_val
+                    # is passed as True to the functuion
                     if check_val:
-                        ratio = itt/self.sim_time
+                        ratio = i / self.sim_time
                         cur_time = datetime.now() - start
                         ETA = cur_time.seconds / ratio
-                        print('\rCurrently {:.2f}%. Running for {} seconds : E.T.A {:.2f} Seconds. T - done = {:.2f}'.format(100*ratio, cur_time, ETA, ETA-cur_time.seconds), end='')  # noqa
-                    self.out_list[count+1, :] = torch.mul(
-                        self.scale_factor, self.y_1)
-                    count = count + 1
+                        print('\rCurrently {:.2f}%. Running for {} seconds : E.T.A {:.2f} Seconds. T - done = {:.2f}'.format(100 * ratio, cur_time, ETA, ETA - cur_time.seconds), end='')  # noqa
+
+                    # put the final result for this iteration at the next
+                    # starting conditions place at count+1 in the output list.
+                    # print(self.y_1)
+                    out_list.append(y_1.tolist()[0])
+                    last_output_time = cur_real_time
             print('\rCompleted in {}!'.format(datetime.now()-start))
-            # end loop
-            # self.out_list[self.output_step - 1,:] = torch.mul(self.scale_factor,self.y_1) # I keep getting weird issues with this line so I commented it # noqa
-            # out, but in theory it should pose no problems... except for the part where it does # noqa
-            return self.out_list
+            return np.array(out_list)
+
         except Exception as e:  # noqa
             print("Error in RK4 method!")
             PrintException()
